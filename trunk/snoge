@@ -551,7 +551,7 @@ sub dumpKML{
                 }
         }
 
-        open( my $KML_FILE,">","$outputFile") or die "Unable top open kml report $outputFile";
+        open( my $KML_FILE,">","$outputFile") or die "Unable to create output file $outputFile . This is configured in $configFile to be $outputFile";
 
         print $KML_FILE "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
         <kml xmlns=\"http://www.opengis.net/kml/2.2\"> 
