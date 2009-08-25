@@ -6,4 +6,10 @@ Take a look at leonward.wordpress.com/snoge for other hints and tips.
 Links:
 	http://leonward.wordpress.com/snoge   <- Snoge's home
 	http://snoge.googlecode.com/          <- Shoge's code repo
+
+TODO:
+	- Add event filtering for estreamer
+	- Add impact flag styles rather than numeric values
+	- Documentation
+	- Clean up variable names
 -Leon
