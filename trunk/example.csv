@@ -1,0 +1,10 @@
+# Example CSV file to plot custom stuff via snoge
+# src_addr,dst_addr,short_msg,baloon_contents
+
+rm-rf.co.uk,google.com,"rm-rf.co.uk access to google","This is a sample event"
+www.sydney.com,rm-rf.co.uk,"Sydney to UK","This is another example. This should be a long line following the Ashes from Oz to the UK :)"
+parisinfo.com,rm-rf.co.uk,"Lots of events from Paris","Test of a larger bar than somewhere else"
+parisinfo.com,rm-rf.co.uk,"Lots of events from Paris","Test of a larger bar than somewhere else"
+parisinfo.com,rm-rf.co.uk,"Lots of events from Paris","Test of a larger bar than somewhere else"
+parisinfo.com,rm-rf.co.uk,"Lots of events from Paris","Test of a larger bar than somewhere else"
+washington.org,sourcefire.com,"Washington and Sourcefire","Random short line between two locations - Last entry should be blue?"
