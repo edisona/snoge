@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -I ..
 
 #########################################################################################
 # Copyright (C) 2009 Leon Ward
@@ -1183,18 +1183,16 @@ if ("$mode" eq "unified") {
 	print "Processing CSV file $oneFile...\n";
 
 	while (my $line=<CSVFILE>) {
-		if ($verbose) {
-			print "Log entry is $line\n";
+		unless ($line =~ m/^[#\s]/) { # Skip comments 
+			if ($verbose) {
+				print "Log line is : $line\n";
+			}
+			(my $src_addr, my $dst_addr,  my $short_msg, my $long_msg) = split(/,/, $line);
+			if ($verbose) {
+				print "Entry Details :\n\t\tsrc_addr = $src_addr \n\t\tdst_addr = $dst_addr \n\t\tshort = $short_msg \n\t\tlong = $long_msg\n";
+			}
+			processevent("$src_addr", "$dst_addr", "Attack", "$short_msg", "$long_msg");
 		}
-		(my $src_addr, my $dst_addr,  my $short_msg, my $long_msg) = split(/,/, $line);
-		if ($verbose) {
-			print "Entry Details :
-				src_addr = $src_addr
-				dst_addr = $dst_addr
-				short = $short_msg
-				long = $long_msg\n";
-		}
-		processevent("$src_addr", "$dst_addr", "Attack", "$short_msg", "$long_msg");
 	}
-	print "Done.\n";
+	print "KML file $outputFile created.\n";
 }
