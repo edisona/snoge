@@ -68,13 +68,14 @@ my $refresh=0;
 my $banner=0;
 my $updateURL=0;
 my $refreshSecs=0;
-my $pause=0;	# a pause for debug after each record
+my $pause=1;	# a pause for debug after each record
 my $argc=1;
 my $mode=0;
 my $dc=0;		# IP of defense Center
 my $port=0;		# port for estreamer on DC
 my $cert=0;		# Certificate file location for estreamer SSL connection
 my $dcurl=0;		# URL to access the DC for viz.cgi
+my $skipunknown=0;
 
 no warnings 'once';	
 
@@ -92,6 +93,9 @@ foreach (@ARGV) {
 	}
 	if (("$_" eq "-r") || ("$_" eq "--refresh")) {
 		$refresh=$ARGV[$argc];
+	}
+	if (("$_" eq "-s") || ("$_" eq "--skip-unknown")) {
+		$skipunknown=1;
 	}
 	$argc++;
 }
@@ -339,9 +343,9 @@ NOTE - Some options are specific to input modes
 
   -c or --config <filename>		Specify config file
   -v or --verbose			Enable verbose mode
-  -r or --refresh			Create a \"server\" KML file for automated updates
+  -r or --refresh <filename>		Create a \"server\" KML file for automated updates
   -o or --onefile <filename>		One time run with a single unified|csv file.
-
+  -s or --skip-unknown			Skip events that we cant location
 ";
 }
 
@@ -605,6 +609,72 @@ sub dumpKML{
                 </LineStyle>
         </Style>
 
+        <Style id=\"Red\">
+                <IconStyle>
+                        <scale>0.5</scale>
+                        <Icon>
+                                <href>$imageurl//red.gif</href>
+                        </Icon>
+                </IconStyle>
+                <LineStyle>
+                        <color>ff0000cc</color>
+                        <width>0.5</width>
+                </LineStyle>
+        </Style>
+
+        <Style id=\"Orange\">
+                <IconStyle>
+                        <scale>0.5</scale>
+                        <Icon>
+                                <href>$imageurl//orange.gif</href>
+                        </Icon>
+                </IconStyle>
+                <LineStyle>
+                        <color>ff0000cc</color>
+                        <width>0.5</width>
+                </LineStyle>
+        </Style>
+
+        <Style id=\"Yellow\">
+                <IconStyle>
+                        <scale>0.5</scale>
+                        <Icon>
+                                <href>$imageurl//yellow.gif</href>
+                        </Icon>
+                </IconStyle>
+                <LineStyle>
+                        <color>ff0000cc</color>
+                        <width>0.5</width>
+                </LineStyle>
+        </Style>
+
+        <Style id=\"Blue\">
+                <IconStyle>
+                        <scale>0.5</scale>
+                        <Icon>
+                                <href>$imageurl//blue.gif</href>
+                        </Icon>
+                </IconStyle>
+                <LineStyle>
+                        <color>ff0000cc</color>
+                        <width>0.5</width>
+                </LineStyle>
+        </Style>
+
+
+        <Style id=\"Grey\">
+                <IconStyle>
+                        <scale>0.5</scale>
+                        <Icon>
+                                <href>$imageurl//grey.gif</href>
+                        </Icon>
+                </IconStyle>
+                <LineStyle>
+                        <color>ff0000cc</color>
+                        <width>0.5</width>
+                </LineStyle>
+        </Style>
+
         <Style id=\"transGreenPoly\">
                 <LineStyle>
                         <color>88009900</color>
@@ -727,7 +797,7 @@ sub dumpKML{
 		}
 
                 if ($verbose) {
-                        print "- Plotting placemark $plotnum $name \n";
+                        print "- Plotting placemark $plotnum $style $name \n";
                 }
 
                 print $KML_FILE "
@@ -892,6 +962,8 @@ sub processevent {
                  }
                  $dstlongitude=$defaultlongitude;
                  $dstlatitude=$defaultlatitude;
+		 $dstcity="UnknownCity";
+		 $dstcountry_name="UnknownCountry";
 	}
 
 	# Find source
@@ -915,15 +987,24 @@ sub processevent {
               	}
                	$srclongitude=$defaultlongitude;
               	$srclatitude=$defaultlatitude;
-		$srccity="UnknowniCity";
+		$srccity="UnknownCity";
 		$srccountry_name="UnknownCountry";
         }
+
+	if ($skipunknown) {
+		if ($verbose) {
+			print "Unknown location -> Unknown location - Skipping to next event, no idea where to plot this RFC 1918?\n";
+		}
+		if (("$srccountry_name" eq "UnknownCountry") and ("$dstcountry_name" eq "UnknownCountry")) {
+			return;
+		}
+	}
 
        	push(@placemarks, ["$srclongitude",
                            "$srclatitude",
                            "$shortmsg - $srccity, $srccountry_name",
 			   "$longmsg",
-                           "Attack",
+                           "$style",
                            "$dstlongitude",
                            "$dstlatitude",
                            "$srccity",
@@ -1158,15 +1239,70 @@ if ("$mode" eq "unified") {
                 	my $dstcountry_code3=0;
                 	my $msg=$rule_map{$event{'gen'}.":".$event{'sid'}};
 
+			my $flag = "Unknown flag color";
+        		my $blocked = "No";
+
+        		if ( $event{'impact_flag'} == 0 ) { 
+                		$flag = "Grey";
+ 		       } elsif (  $event{'impact_flag'} == 1 ){
+                		$flag = "Blue" ;
+		        } elsif (  $event{'impact_flag'} == 3 ){
+                		$flag = "Yellow" ;
+        		} elsif (  $event{'impact_flag'} == 7 ){
+                		$flag = "Orange" ;
+        		} elsif (  $event{'impact_flag'} == 11 ){
+                		$flag = "Red" ;
+        		} elsif (  $event{'impact_flag'} == 15 ){
+                		$flag = "Red" ;
+        		} elsif (  $event{'impact_flag'} == 19 ){
+                		$flag = "Red" ;
+        		} elsif (  $event{'impact_flag'} == 23 ){
+                		$flag = "Red" ;
+        		} elsif (  $event{'impact_flag'} == 27 ){
+                		$flag = "Red" ;
+        		} elsif (  $event{'impact_flag'} == 31 ){
+                		$flag = "Red" ;
+        		} elsif (  $event{'impact_flag'} == 32 ){
+                		$flag = "Grey" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 33 ){
+                		$flag = "Blue" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 35 ){
+                		$flag = "Yellow" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 39 ){
+                		$flag = "Orange" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 43 ){
+                		$flag = "Red" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 47 ){
+                		$flag = "Red" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 51 ){
+                		$flag = "Red" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 55 ){
+                		$flag = "Red" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 59 ){
+                		$flag = "Red" ;
+                		$blocked = "Yes";
+        		} elsif (  $event{'impact_flag'} == 63 ){
+                		$flag = "Red" ;
+                		$blocked = "Yes";
+        		}   
+
 			if ($verbose) {
                         	print "********* New Event *********\n";
-                        	print "*  Got event $timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Pri $priority : Impact $impact\n";
+                        	print "*  Got event $timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Pri $priority : Impact $impact : Flag $flag\n";
                 	}
 
 			my $shortmsg="$msg";
-			my $longmsg="$timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Priority $priority : Impact $impact\n";
+			my $longmsg="$timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Priority $priority : Impact $flag\n";
 
-			processevent("$src_addr","$dst_addr","Attack","$shortmsg","$longmsg");
+			processevent("$src_addr","$dst_addr","$flag","$shortmsg","$longmsg");
 
         	} elsif ( $event{'rec_type'} == $SFStreamer::RECORD_RULE ) {
                 	$rule_map{$event{'generator_id'}.":".$event{'rule_id'}} = $event{'msg'};
