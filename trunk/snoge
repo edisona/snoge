@@ -103,6 +103,9 @@ foreach (@ARGV) {
 	if (("$_" eq "-w") || ("$_" eq "--write")) {
 		$outputFile=$ARGV[$argc];
 	}
+	if (("$_" eq "-p") || ("$_" eq "--pause")) {
+		$pause=1;
+	}
 	$argc++;
 }
 
@@ -536,7 +539,7 @@ sub dumpKML{
         my %cityPct=();
 
         if ($verbose) {
-                print "-Calculating Ingress Bars \n";
+                print "- Calculating Ingress Bars \n";
         }
 
         for my $eventsfromlocation (keys %cities) {
@@ -1004,7 +1007,7 @@ sub processevent {
 
 	if ($skipunknown) {
 		if ($verbose) {
-			print "Unknown location -> Unknown location - Skipping to next event, no idea where to plot this RFC 1918?\n";
+			print "- Unknown location -> Unknown location - Skipping to next event, no idea where to plot this RFC 1918?\n";
 		}
 		if (("$srccountry_name" eq "UnknownCountry") and ("$dstcountry_name" eq "UnknownCountry")) {
 			return;
@@ -1252,10 +1255,15 @@ if ("$mode" eq "unified") {
 
 			my $flag = "Unknown flag color";
         		my $blocked = "No";
+			
+			if ($pause) {
+				print "Pause ....\n";
+				my $foo=<STDIN>;
+			}
 
         		if ( $event{'impact_flag'} == 0 ) { 
                 		$flag = "Grey";
- 		       } elsif (  $event{'impact_flag'} == 1 ){
+ 		        } elsif (  $event{'impact_flag'} == 1 ){
                 		$flag = "Blue" ;
 		        } elsif (  $event{'impact_flag'} == 3 ){
                 		$flag = "Yellow" ;
@@ -1318,9 +1326,6 @@ if ("$mode" eq "unified") {
         	} elsif ( $event{'rec_type'} == $SFStreamer::RECORD_RULE ) {
                 	$rule_map{$event{'generator_id'}.":".$event{'rule_id'}} = $event{'msg'};
         	}
-		if ($pause) {
-			my $foo=<STDIN>;
-		}
 	ack_data($socket);
 	}
 
