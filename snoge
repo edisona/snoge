@@ -68,7 +68,7 @@ my $refresh=0;
 my $banner=0;
 my $updateURL=0;
 my $refreshSecs=0;
-my $pause=1;	# a pause for debug after each record
+my $pause=0;	# a pause for debug after each record
 my $argc=1;
 my $mode=0;
 my $dc=0;		# IP of defense Center
@@ -97,6 +97,12 @@ foreach (@ARGV) {
 	if (("$_" eq "-s") || ("$_" eq "--skip-unknown")) {
 		$skipunknown=1;
 	}
+	if (("$_" eq "-m") || ("$_" eq "--mode")) {
+		$mode=$ARGV[$argc];
+	}
+	if (("$_" eq "-w") || ("$_" eq "--write")) {
+		$outputFile=$ARGV[$argc];
+	}
 	$argc++;
 }
 
@@ -114,7 +120,9 @@ while (my $line = <CONFIG>) {
 	}
 
 	if ( $line =~ m/^(mode=\")(.*)(\")/) {
-		$mode=$2;	
+		unless ($mode) {
+			$mode=$2;	
+		}
 		if ($verbose) { print "Config: Input mode is $mode\n";}
 	}
 
@@ -189,7 +197,9 @@ while (my $line = <CONFIG>) {
 	}
 
 	if ( $line =~ m/^(kmlfile=\")(.*)(\")/) {
-		$outputFile=$2;	
+		unless ($outputFile) {
+			$outputFile=$2;	
+		}
 		if ($verbose) { print "CONFIG: Creating output file $outputFile  \n";}
 	}
 
@@ -315,7 +325,7 @@ if ("$mode" eq "unified" ) {
 		die("Unable to connect to $dc on $port");
 	}
 
-} elsif ("$mode" eq "csvfile") {
+} elsif ("$mode" eq "csv") {
 	unless ($oneFile) {
 		die "CSV mode requires a filename, use --onefile to set filename";
 	}
@@ -346,6 +356,7 @@ NOTE - Some options are specific to input modes
   -r or --refresh <filename>		Create a \"server\" KML file for automated updates
   -o or --onefile <filename>		One time run with a single unified|csv file.
   -s or --skip-unknown			Skip events that we cant location
+  -m or --mode				Set imput mode (overrides .conf)
 ";
 }
 
@@ -1315,7 +1326,7 @@ if ("$mode" eq "unified") {
 
 	close($socket);
 
-} elsif ("$mode" eq "csvfile") {
+} elsif ("$mode" eq "csv") {
 	print "Processing CSV file $oneFile...\n";
 
 	while (my $line=<CSVFILE>) {
