@@ -1,0 +1,192 @@
+#summary One-sentence summary of this page.
+
+= SnoGE from scratch = 
+
+Leon Ward
+
+== Installation ==
+
+These instructions were performed on a "clean" installation of Debian Lenny, they should be similar for any Debian based Linux distribution such as Ubuntu. You should be able to copy/paste most of the commands into a terminal to simplify the process.
+
+- Platform Set-up.
+Depending on what mode you plan to run SnoGE on, you will need a selection of the below packages.
+<pre>
+sudo apt-get install build-essential subversion apache2 unzip libio-socket-ssl-perl
+mkdir ~/Build 
+</pre>
+1) Download SnoGE from GoogleCode.
+
+For stable installations, please use the latest tarball found in the downloads section, those who like to live on the bleeding edge can check the source out of svn. I recommend you try the SVN code first, and if it fails fall-back to a tar-ball.
+
+=== Stable package ===
+<pre>
+cd ~/Build
+wget http://snoge.googlecode.com/files/snoge-1.5.tgz 
+tar -zxvf snoge-1.5.tgz 
+</pre>
+=== SVN Version (expect some breakage) ===
+<pre>
+cd ~/Build
+svn checkout http://snoge.googlecode.com/svn/trunk/ snoge-read-only
+</pre>
+2) Install the Geo::IP::PurePerl module via CPAN
+
+If this is the first time you have used cpan, it may need configuring, and unless you are running some archaic version most of this configuration should be automatically.
+<pre>
+cd ~/Build
+sudo cpan -i Geo::IP::PurePerl
+wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+gunzip ./GeoLiteCity.dat.gz
+sudo mkdir /usr/local/share/GeoIP
+sudo cp GeoLiteCity.dat /usr/local/share/GeoIP/
+</pre>
+
+3) Set up an output directory that can be accessed via http
+You can of course complete a more secure / complex apache configuration, but this is out of scope for this install doc.
+<pre>
+sudo mkdir /var/www/snoge
+sudo chown lward /var/www/snoge
+</pre>
+4) Test snoge
+<pre>
+cd ~/Build/snoge/
+</pre>
+Configure SnoGE for CSV mode 
+<pre>
+./snoge -c snoge.conf --onefile example.csv -m csv -w /var/www/snoge/snoge.kml
+</pre>
+
+You should see output that looks a little like the below
+<pre>
+
+CSV File mode (processing example.csv)
+Processing CSV file example.csv...
+KML file /var/www/snoge/snoge.kml created.
+</pre>
+Open the KML in google earth. As apache is installed on this device, you should be able to point a web browser to http://hostname/snoge/snoge.kml
+
+Assuming this works, you can then move on to linking snoge into Snort, or Sourcefire
+
+== SnoGE and Snort ==
+<pre>
+cd ~/Build
+wget http://snort-unified-perl.googlecode.com/files/SnortUnified_Perl.20070927.tgz
+tar -zxvf ./SnortUnified_Perl.20070927.tgz
+cd snort-unified-perl/
+sudo cp SnortUnified.pm /usr/local/lib/perl/5.10.0
+cd ~/Build
+sudo cpan -i NetPacket::Ethernet
+</pre>
+
+Find a unified file to test with, and give it a shot:
+
+./snoge -c snoge.conf -m unified -o /tmp/snort.alert.1248270139 
+
+You should see output a little like this
+<pre>
+lward@snogeinstall:~/Dev/snoge$ ./snoge -c snoge.conf -m unified -o /tmp/snort.alert.1248270139 
+Unified mode * Importing functions:
+- Now processing unified file(s).....
+Working on single file /tmp/snort.alert.1248270139
+lward@snogeinstall:~/Dev/snoge$ 
+</pre>
+== SnoGE and Sourcefire ==
+
+Download the Event Streamer SDK from the Sourcefire support website, it can be found filed under file Downloads / Version Number / Utilities / EventStreamerSDK-version.zip. 
+
+Once downloaded, copy the tarball onto the target systm and place in ~/Build
+<pre>
+cd ~/Build
+sudo cpan -i NetPacket::Ethernet
+unzip EventStreamerSDK-4.8.0.2.zip
+cd examples/perl_client/ 
+sudo cp SFStreamer.pm /usr/local/lib/perl/5.10.0/
+</pre>
+Complete the following tasks on your Defense Center, or 3D Sensor
+
+* Navigate to Operations / Configuration / Estreamer
+* Click on "Create Client"
+* Enter the IP address or Hostname of the system running SnoGE. Leave the password field blank
+* Download the generated certificate and copy it onto the host running Snoge
+* Convert the certificate from PKCS12 format 
+    hint -> openssl pkcs12 -nodes -in ~/192.168.222.136.pkcs12 > ~/certfile.txt
+
+Test snoge with estreamer
+<pre>
+lward@snogeinstall:~/Dev/snoge$ ./snoge -c snoge.conf -m estreamer 
+Estreamer Mode - Importing functions
+Connecting to DC 192.168.222.20
+Connected to DC 192.168.222.20 on 8302
+Processing estreamer data...
+
+<It will stop here while it process's the event feed>
+
+If you want to find re-assurance that SnoGE is functioning, add the -v (verbose) option. It will look something more like this:
+lward@snogeinstall:~/Dev/snoge$ ./snoge -c snoge.conf -m estreamer -v -p
+Config: Input mode is estreamer
+CONFIG: Creating output file /dev/null  
+CONFIG: Adding a sensor for location  rm-rf.co.uk
+CONFIG: Adding a sensor for location  sourcefire.com
+CONFIG: Base filename is /var/log/snort/snort.alert
+CONFIG: Classification.confg set to /etc/snort/classification.config
+CONFIG: Ignoring SID 1421
+CONFIG: Ignoring SID 1000000001
+CONFIG: Ignoring SID 13948
+CONFIG: Ignoring SID 12801
+CONFIG: Images expected at http://rm-rf.co.uk/downloads/
+CONFIG: Using snorty.gif as the event icon
+CONFIG: Using warning.png as the event icon
+CONFIG: Using waldo file /dev/null 
+Config: Sid-msg file is /etc/snort/sid-msg.map
+CONFIG: gen-msg file is /etc/snort/gen-msg.map
+CONFIG: Ignoring source ip 80.68.89.43
+CONFIG: Maximum number of placemarks set to 50 events 
+CONFIG: Updateinterval set to 0 events 
+CONFIG: Maximum number of events to track in bars  set to 4000  
+CONFIG: Default locarion set to rm-rf.co.uk.
+- Default Latitude set to 53.9667 
+- Default Longitude set to -1.08330000000001 
+- Defailt City - > York United Kingdom
+CONFIG: Default latitude for unknown location set to 53.9667  
+CONFIG: Update URL is http://192.168.222.136/snoge/snoge.kml for serverKML
+CONFIG: Banner is snort-ge-banner.png in serverKML
+CONFIG: Refreshing every 5  
+CONFIG: Defense Center IP is 192.168.222.20
+CONFIG: Defense Center Port is 8302
+CONFIG: Defense Center SSL Cert is /home/lward/certfile.txt
+Estreamer Mode - Importing functions
+Connecting to DC 192.168.222.20
+Connected to DC 192.168.222.20 on 8302
+- Adding sensor rm-rf.co.uk in York, United Kingdom 
+- Adding sensor sourcefire.com in Columbia, United States 
+Processing estreamer data...
+********* New Event *********
+*  Got event Fri Mar 20 11:46:18 2009 1:1287 - WEB-IIS scripts access 192.168.10.128 -> 64.127.109.133 : Pri 2 : Impact 3 : Flag Yellow
+ProcessEvent: 
+                src_addr= 192.168.10.128
+                dst_addr= 64.127.109.133
+                style= Yellow
+                shortmsg= WEB-IIS scripts access
+                longmsg= Fri Mar 20 11:46:18 2009 1:1287 - WEB-IIS scripts access 192.168.10.128 -> 64.127.109.133 : Priority 2 : Impact Yellow
+
+- DestIP 64.127.109.133 location found in San Francisco, United States
+- SrcIP 192.168.10.128 location unknown, defaulting to  -1.08330000000001, 53.9667
+* updating dists
+- Got city  
+- City is UnknownCity
+- Updating Dist for UnknownCity
+- 10 events are now in cache for UnknownCity
+* Got another 1 events, time to update KML file for the 10 time
+- Creating a KML file : /dev/null
+- Calculating Ingress Bars 
+- 11 events in collection
+
+<snip>
+</pre>
+
+Good luck, and happy plotting.
+
+- 2 locations
+- Total height is 200000
+
+</pre>
