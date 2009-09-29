@@ -21,7 +21,7 @@ For stable installations, please use the latest tarball found in the downloads s
 === Stable package ===
 <pre>
 cd ~/Build
-wget http://snoge.googlecode.com/files/snoge-1.5.tgz 
+wget http://snoge.googlecode.com/files/snoge-1.6.tgz 
 tar -zxvf snoge-1.5.tgz 
 </pre>
 === SVN Version (expect some breakage) ===
