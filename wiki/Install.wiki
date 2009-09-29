@@ -8,7 +8,7 @@ Leon Ward
 
 These instructions were performed on a "clean" installation of Debian Lenny, they should be similar for any Debian based Linux distribution such as Ubuntu. You should be able to copy/paste most of the commands into a terminal to simplify the process.
 
-- Platform Set-up.
+=== Platform Set-up ===
 Depending on what mode you plan to run SnoGE on, you will need a selection of the below packages.
 <pre>
 sudo apt-get install build-essential subversion apache2 unzip libio-socket-ssl-perl
