@@ -80,7 +80,7 @@ lward@snogeinstall:~/Dev/snoge$
 
 =============== SnoGE and Sourcefire  ================
 
-Download the Event Streamer SDK from the Sourcefire support website, it can be found filed under file Downloads / Version Number / Utilities / EventStreamerSDK-<version>.zip. Once downloaded, copy the tarball onto the target systm and place in ~/Build
+Download version 4.8 of the Event Streamer SDK from the Sourcefire support website, it can be found filed under file Downloads / Version Number / Utilities / EventStreamerSDK-<version>.zip. Once downloaded, copy the tarball onto the target systm and place in ~/Build. DO NOT USE version 4.9 of the Estreamer SDK, stick with 4.8. This doesn't prevent operation with version 4.9 of the 3D System, it works fine with the 4.8 SDK.
 
 cd ~/Build
 sudo cpan -i NetPacket::Ethernet
