@@ -93,6 +93,7 @@ lward@snogeinstall:~/Dev/snoge$
 == SnoGE and Sourcefire ==
 
 Download the Event Streamer SDK from the Sourcefire support website, it can be found filed under file Downloads / Version Number / Utilities / EventStreamerSDK-version.zip. 
+You need version 4.8 of this SDK SnoGE doesn't work with the 4.9 SDK (this still works fine with Sourcefire 3D version 4.9, it's just the SDK version).
 
 Once downloaded, copy the tarball onto the target systm and place in ~/Build
 <pre>
