@@ -43,7 +43,7 @@ my $record = {};
 # These are explained in the sample config file included with this tool. 
 # Don't set them here, use the .conf!
 
-my $version=1.6;
+my $version=1.7;
 my $basefile=0;		
 my $updateInterval=0;
 my $maxPlacemarks=0;
