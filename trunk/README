@@ -8,6 +8,7 @@ Links:
 	http://snoge.googlecode.com/          <- Shoge's code repo
 
 TODO:
+	- Update to support the "new" 4.9 estreamer SDK (stick with the 4.8 SDK, it works fine with 4.9 of the product)
 	- Add event filtering for estreamer
 	- Add impact flag styles rather than numeric values
 	- Documentation
