@@ -35,6 +35,7 @@ If this is the first time you have used cpan, it may need configuring, and unles
 <pre>
 cd ~/Build
 sudo cpan -i Geo::IP::PurePerl
+
 wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
 gunzip ./GeoLiteCity.dat.gz
 sudo mkdir /usr/local/share/GeoIP
