@@ -1,4 +1,4 @@
-#!/usr/bin/perl -I ..
+#!/opt/local/bin/perl -I ..
 
 #########################################################################################
 # Copyright (C) 2009 Leon Ward
@@ -42,38 +42,18 @@ my $record = {};
 # ---------- Config file Defaults ----------
 # These are explained in the sample config file included with this tool. 
 # Don't set them here, use the .conf!
-
+my %config;
+my $mode=0;
 my $version=1.7;
-my $basefile=0;		
-my $updateInterval=0;
-my $maxPlacemarks=0;
-my $maxStats=0;
 my $defaultlongitude=0;
 my $defaultlatitude=0;
-my $defaultlocation=0;
 my $outputFile=0;
-my @sensors=();
-my $imageurl=0;
-my $waldo="/dev/null";	
 my $classfile=0;
-my @ignoreSource=();
-my @ignoreDestination=();
-my @ignoreSID=();
 my $verbose=0;	# For debugging - way to verbose for normal usage
-my ($sidmsg,$genmsg);
 my $oneFile=0;
-my $eventIcon=0;
-my $sensorIcon=0;
 my $refresh=0;
-my $banner=0;
-my $updateURL=0;
-my $refreshSecs=0;
 my $pause=0;	# a pause for debug after each record
 my $argc=1;
-my $mode=0;
-my $dc=0;		# IP of defense Center
-my $port=0;		# port for estreamer on DC
-my $cert=0;		# Certificate file location for estreamer SSL connection
 my $dcurl=0;		# URL to access the DC for viz.cgi
 my $skipunknown=0;
 
@@ -115,161 +95,88 @@ unless ($configFile) {
 	exit 1;
 }
 
+
+# Default values for configuration. These are all set in the config file. Don't change them here.
+
+$config{'sid-msg'}="sid-msg.map";
+$config{'mode'}="csv";
+$config{'gen-msg'}="./gen-msg.map";
+$config{'basefilename'}="./unified1.alert";
+$config{'ignoresource'}=0;
+$config{'ignoredestination'}=0;
+$config{'dc'}="192.168.222.20";
+$config{'port'}="8302";
+$config{'certfile'}="./certfile.txt";
+$config{'ignoresids'}=0;
+$config{'updateinterval'}="0";
+$config{'maxplacemarks'}="100";
+$config{'maxstats'}="200";
+$config{'defaultlocation'}="rm-rf.co.uk";
+$config{'kmlfile'}="./output.kml";
+$config{'refreshsecs'}="30";
+$config{'waldo'}="/dev/null";
+$config{'eventicon'}="warning.png";
+$config{'sensoricon'}="snorty.gif";
+$config{'banner'}="snort-ge-banner.png";
+$config{'updateurl'}="http://localhost/snoge/snoge.kml";
+$config{'sensors'}="rm-rf.co.uk sourcefire.com";
+$config{'classification'}="./clasification.config";
+
+open my $config, '<', $configFile or die "Unable to open config file $configFile $!";
+    while(<$config>) {
+        chomp; 
+	if ( $_ =~ m/^[a-zA-Z]/) {
+       		(my $key, my @value) = split /=/, $_;
+       		$config{$key} = join '=', @value;
+	}
+    }
+close $config;
+#print Dumper %config;
+
+
+
+
+
+if ($verbose) { 
+	print "CONFIG: Input mode is        : $config{'mode'}\n";
+	print "CONFIG: sid-msg file is      : $config{'sid-msg'}\n";
+	print "CONFIG: gen-msg file is      : $config{'gen-msg'}\n";
+	print "CONFIG: Base filename is     : $config{'basefilename'}\n";
+	print "CONFIG: Ignoring Source      : $config{'ignoresource'}\n";
+	print "CONFIG: Ignoring Destination : $config{'ignoredestination'}\n";
+	print "CONFIG: Ignoring SIDs        : $config{'ignoresids'}\n";
+	print "CONFIG: Updateinterval       : $config{'updateinterval'} events \n";
+	print "CONFIG: Maxplacemarks        : $config{'maxplacemarks'} \n";
+	print "CONFIG: Maximum Statistics   : $config{'maxstats'} \n";
+	print "CONFIG: Default location     : $config{'defaultlocation'} \n";
+	print "CONFIG: KMLOutputfile        : $config{'kmlfile'} \n";
+	print "CONFIG: Server Refresh       : $config{'refreshsecs'} \n";
+	print "CONFIG: waldo                : $config{'waldo'} \n";
+	print "CONFIG: Event Icon           : $config{'eventicon'} \n";
+	print "CONFIG: Sensor Icon          : $config{'sensoricon'} \n";
+	print "CONFIG: Banner               : $config{'banner'} \n";
+	print "CONFIG: UpdateURL            : $config{'updateurl'} \n";
+	print "CONFIG: Defense Center       : $config{'dc'} \n";
+	print "CONFIG: Estreamer Port       : $config{'port'}\n";
+	print "CONFIG: Certfile             : $config{'certfile'}\n";
+	print "CONFIG: Sensors              : $config{'sensors'}\n";
+	print "CONFIG: Image URL            : $config{'imageurl'}\n";
+	print "CONFIG: classification file  : $config{'classification'}\n";
+
+}
+
+lookupDefaults("$config{'defaultlocation'}");
+unless ($outputFile) {
+	$outputFile=$config{'kmlfile'};	
+}
+my @sensors=split(/ /, $config{'sensors'});
+my @ignoresids=split(/ /, $config{'ignoresids'});
+my @ignoresource=split(/ /, $config{'ignoresource'});
+
 open (CONFIG,"$configFile") or die "Unable to open config file $configFile";
 while (my $line = <CONFIG>) {
-	if ( $line =~ m/^(sid-msg=\")(.*)(\")/) {
-		$sidmsg=$2;	
-		if ($verbose) { print "Config: Sid-msg file is $sidmsg\n";}
-	}
-
-	if ( $line =~ m/^(mode=\")(.*)(\")/) {
-		unless ($mode) {
-			$mode=$2;	
-		}
-		if ($verbose) { print "Config: Input mode is $mode\n";}
-	}
 
 
-	if ( $line =~ m/^(gen-msg=\")(.*)(\")/) {
-		$genmsg=$2;	
-		if ($verbose) { print "CONFIG: gen-msg file is $genmsg\n";}
-	}
-
-	if ( $line =~ m/^(basefilename=\")(.*)(\")/) {
-		$basefile=$2;	
-		if ($verbose) { print "CONFIG: Base filename is $basefile\n";}
-	}
-
-	if ( $line =~ m/^(ignoresource=\")(.*)(\")/ ){
-		@ignoreSource=split(/ /, $2);
-		if ($verbose) {
-			foreach (@ignoreSource) {
-				print "CONFIG: Ignoring source ip $_\n";
-			}
-		}
-	}
-
-	if ( $line =~ m/^(ignoredestination=\")(.*)(\")/ ){
-		@ignoreDestination=split(/ /, $2);
-		if ($verbose) {
-			foreach (@ignoreDestination) {
-				print "CONFIG: Ignoring Destination ip $_\n";
-			}
-		}
-	}
-
-	if ( $line =~ m/^(ignoresids=\")(.*)(\")/ ){
-		@ignoreSID=split(/ /, $2);
-		if ($verbose) {
-			foreach (@ignoreSID) {
-				print "CONFIG: Ignoring SID $_\n";
-			}
-		}
-	}
-
-	if ( $line =~ m/^(updateinterval=\")(.*)(\")/) {
-		$updateInterval=$2;	
-		if ($verbose) { print "CONFIG: Updateinterval set to $updateInterval events \n";}
-	}
-
-	if ( $line =~ m/^(maxplacemarks=\")(.*)(\")/) {
-		$maxPlacemarks=$2;	
-		if ($verbose) { print "CONFIG: Maximum number of placemarks set to $maxPlacemarks events \n";}
-	}
-
-	if ( $line =~ m/^(maxstats=\")(.*)(\")/) {
-		$maxStats=$2;	
-		if ($verbose) { print "CONFIG: Maximum number of events to track in bars  set to $maxStats  \n";}
-	}
-
-	if ( $line =~ m/^(defaultlongitude=\")(.*)(\")/) {
-		$defaultlongitude=$2;	
-		if ($verbose) { print "CONFIG: Default longitude for unknown location set to $defaultlongitude  \n";}
-	}
-
-	if ( $line =~ m/^(defaultlatitude=\")(.*)(\")/) {
-		$defaultlatitude=$2;	
-		if ($verbose) { print "CONFIG: Default latitude for unknown location set to $defaultlatitude  \n";}
-	}
-
-	if ( $line =~ m/^(defaultlocation=\")(.*)(\")/) {
-		$defaultlocation=$2;	
-		if ($verbose) { print "CONFIG: Default locarion set to $defaultlocation.\n";}
-		lookupDefaults("$defaultlocation");
-		if ($verbose) { print "CONFIG: Default latitude for unknown location set to $defaultlatitude  \n";}
-	}
-
-	if ( $line =~ m/^(kmlfile=\")(.*)(\")/) {
-		unless ($outputFile) {
-			$outputFile=$2;	
-		}
-		if ($verbose) { print "CONFIG: Creating output file $outputFile  \n";}
-	}
-
-	if ( $line =~ m/^(refreshsecs=\")(.*)(\")/) {
-		$refreshSecs=$2;	
-		if ($verbose) { print "CONFIG: Refreshing every $refreshSecs  \n";}
-	}
-
-	if ( $line =~ m/^(waldo=\")(.*)(\")/) {
-		$waldo=$2;	
-		if ($verbose) { print "CONFIG: Using waldo file $waldo \n";}
-	}
-
-	if ( $line =~ m/^(eventicon=\")(.*)(\")/) {
-		$eventIcon=$2;	
-		if ($verbose) { print "CONFIG: Using $eventIcon as the event icon\n";}
-	}
-
-	if ( $line =~ m/^(sensoricon=\")(.*)(\")/) {
-		$sensorIcon=$2;	
-		if ($verbose) { print "CONFIG: Using $sensorIcon as the event icon\n";}
-	}
-
-	if ( $line =~ m/^(banner=\")(.*)(\")/) {
-		$banner=$2;	
-		if ($verbose) { print "CONFIG: Banner is $banner in serverKML\n";}
-	}
-
-	if ( $line =~ m/^(updateurl=\")(.*)(\")/) {
-		$updateURL=$2;	
-		if ($verbose) { print "CONFIG: Update URL is $updateURL for serverKML\n";}
-	}
-
-
-	if ( $line =~ m/^(dc=\")(.*)(\")/) {
-		$dc=$2;	
-		if ($verbose) { print "CONFIG: Defense Center IP is $dc\n";}
-	}
-
-	if ( $line =~ m/^(port=\")(.*)(\")/) {
-		$port=$2;	
-		if ($verbose) { print "CONFIG: Defense Center Port is $port\n";}
-	}
-
-	if ( $line =~ m/^(certfile=\")(.*)(\")/) {
-		$cert=$2;	
-		if ($verbose) { print "CONFIG: Defense Center SSL Cert is $cert\n";}
-	}
-
-	if ( $line =~ m/^(sensors=\")(.*)(\")/ ){
-		@sensors=split(/ /, $2);
-		if ($verbose) {
-			foreach (@sensors) {
-				print "CONFIG: Adding a sensor for location  $_\n";
-			}
-		}
-	}
-
-	if ( $line =~ m/^(imageurl=\")(.*)(\")/) {
-		$imageurl=$2;	
-		if ($verbose) { print "CONFIG: Images expected at $imageurl\n";}
-	}
-
-	if ( $line =~ m/^(classification=\")(.*)(\")/) {
-		$classfile=$2;	
-		if ($verbose) { print "CONFIG: Classification.confg set to $classfile\n";}
-	}
 }
 
 # ------ These variables are not for human consumption ------
@@ -300,35 +207,47 @@ my $socket=0;
 # require foo; foo->import(qw(:Stuff);
 # should work for us instead
 
-if ("$mode" eq "unified" ) {
-	print "Unified mode * Importing functions:\n";
+if ("$config{'mode'}" eq "unified" ) {
+	print "- Unified mode * Importing functions:\n";
 	require SnortUnified ; SnortUnified->import(qw(:DEFAULT :meta_handlers));
-	$sids = get_snort_sids("$sidmsg","$genmsg");
-	$class = get_snort_classifications("$classfile");
-} elsif ("$mode" eq "estreamer") {
+	unless ( -f $config{'sid-msg'} ) {
+		die ( "Unable to open $config{'sid-msg'} for sid-msg map" ); 
+	}
+
+	unless ( -f $config{'gen-msg'} ) {
+		die ( "Unable to open $config{'gen-msg'} for generator map" ); 
+	}
+
+	unless ( -f $config{'classification'} ) {
+		die ( "Unable to open $config{'classification'} for a classification map" ); 
+	}
+
+	$sids = get_snort_sids("$config{'sid-msg'}","$config{'gen-msg'}");
+	$class = get_snort_classifications("$config{'classification'}");
+} elsif ("$config{'mode'}" eq "estreamer") {
 	print "Estreamer Mode - Importing functions\n";
 	require IO::Socket::SSL; IO::Socket::SSL->import();
 	require SFStreamer ; 
 	SFStreamer->import(qw(:DEFAULT));
 	#require SFStreamer ; SFStreamer->import(qw(:DEFAULT));
 	#require SFSGlobals ; SFSGlobals->import(qw(:DEFAULT)); 
-	print "Connecting to DC $dc\n";
+	print "Connecting to DC $config{'dc'}\n";
 	#print $FLAG_METADATA::SFStreamer;
-	unless (-f $cert) {
-		die "Unable to find SSL cert $cert";
+	unless (-f $config{'certfile'}) {
+		die "Unable to find SSL cert $config{'certfile'}";
 	}
-	if ( $socket= new IO::Socket::SSL(PeerAddr => "$dc",
-                                PeerPort => "$port",
+	if ( $socket= new IO::Socket::SSL(PeerAddr => "$config{'dc'}",
+                                PeerPort => "$config{'port'}",
                                 Proto => 'tcp', 
                                 SSL_use_cert => 1,
-                                SSL_cert_file => "$cert",
-                                SSL_key_file => "$cert") ) {
-		print "Connected to DC $dc on $port\n"
+                                SSL_cert_file => "$config{'certfile'}",
+                                SSL_key_file => "$config{'certfile'}") ) {
+		print "Connected to DC $config{'dc'} on $config{'port'}\n"
 	} else {
-		die("Unable to connect to $dc on $port");
+		die("Unable to connect to $config{'dc'} on $config{'port'}");
 	}
 
-} elsif ("$mode" eq "csv") {
+} elsif ("$config{'mode'}" eq "csv") {
 	unless ($oneFile) {
 		die "CSV mode requires a filename, use --onefile to set filename";
 	}
@@ -422,9 +341,9 @@ sub lookupDefaults{
 sub serverKML{
 	print "Creating a server KML to serve event updates 
 	Filename: $refresh
-	Update interval: $refreshSecs
-	ImageURL: $imageurl
-	Banner: $banner
+	Update interval: $config{'refreshsecs'}
+	ImageURL: $config{'imageurl'}
+	Banner: $config{'banner'}
 	";
 	
 	open SERVERKML, ">", "$refresh" or die "Unable to open $refresh for writing";
@@ -436,7 +355,7 @@ sub serverKML{
         	<ScreenOverlay>
                 	<name>Banner</name>
                 	<Icon>
-                        	<href>$imageurl/$banner</href>
+                        	<href>$config{'imageurl'}/$config{'banner'}</href>
                 	</Icon>
                 	<overlayXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>
                 	<screenXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>
@@ -448,9 +367,9 @@ sub serverKML{
                 	<visibility>1</visibility>
                 	<!--<flyToView>1</flyToView>-->
                 	<Url>
-                        	<href>$updateURL</href>
+                        	<href>$config{'updateurl'}</href>
                         	<refreshMode>onInterval</refreshMode>
-                        	<refreshInterval>$refreshSecs</refreshInterval>
+                        	<refreshInterval>$config{'refreshsecs'}</refreshInterval>
                 	</Url>
                 	<refreshVisibility>1</refreshVisibility>
         	</NetworkLink>
@@ -487,11 +406,11 @@ sub updateDist{
 
         push(@citiestracked,$city);
 
-        # Only keep track of the last maxStats events
-        if ( @citiestracked >= $maxStats ){
+        # Only keep track of the last maxstats events
+        if ( @citiestracked >= $config{'maxstats'} ){
                 my $rmcity=shift @citiestracked;
                 if ($verbose) {
-                        print " * Hit max event count of $maxStats\n";
+                        print " * Hit max event count of $config{'maxstats'}\n";
                         print " - Oldest stat is from $rmcity - $cities{$rmcity} visits\n";
                         print " - rmcity is  $rmcity - $cities{$rmcity} visits\n";
                         print " - city is  $city - $cities{$city} visits\n";
@@ -577,7 +496,7 @@ sub dumpKML{
         <Style id=\"snort\">
                 <IconStyle>
                         <Icon>
-                                <href>$imageurl/$sensorIcon</href>
+                                <href>$config{'imageurl'}/$config{'sensoricon'}</href>
                         </Icon>
                 </IconStyle>
         </Style>
@@ -585,7 +504,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>2</scale>
                         <Icon>
-                                <href>$imageurl/3DSensor_logo.png</href>
+                                <href>$config{'imageurl'}/3DSensor_logo.png</href>
                         </Icon>
                 </IconStyle>
         </Style>
@@ -593,7 +512,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.2</scale>
                         <Icon>
-                                <href>$imageurl/warning.png</href>
+                                <href>$config{'imageurl'}/warning.png</href>
                         </Icon>
                 </IconStyle>
         </Style>
@@ -601,7 +520,7 @@ sub dumpKML{
         <Style id=\"Last\">
                 <IconStyle>
                         <Icon>
-                                <href>$imageurl/$eventIcon</href>
+                                <href>$config{'imageurl'}/$config{'eventicon'}</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -614,7 +533,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.5</scale>
                         <Icon>
-                                <href>$imageurl//$eventIcon</href>
+                                <href>$config{'imageurl'}//$config{'eventicon'}</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -627,7 +546,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.5</scale>
                         <Icon>
-                                <href>$imageurl//red.gif</href>
+                                <href>$config{'imageurl'}//red.gif</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -640,7 +559,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.5</scale>
                         <Icon>
-                                <href>$imageurl//orange.gif</href>
+                                <href>$config{'imageurl'}//orange.gif</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -653,7 +572,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.5</scale>
                         <Icon>
-                                <href>$imageurl//yellow.gif</href>
+                                <href>$config{'imageurl'}//yellow.gif</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -666,7 +585,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.5</scale>
                         <Icon>
-                                <href>$imageurl//blue.gif</href>
+                                <href>$config{'imageurl'}//blue.gif</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -680,7 +599,7 @@ sub dumpKML{
                 <IconStyle>
                         <scale>0.5</scale>
                         <Icon>
-                                <href>$imageurl//grey.gif</href>
+                                <href>$config{'imageurl'}//grey.gif</href>
                         </Icon>
                 </IconStyle>
                 <LineStyle>
@@ -1048,16 +967,16 @@ sub processevent {
 
         # Limit the number of placemarks we display to a number
         my $numofpoints = @placemarks;
-        if ($numofpoints >= $maxPlacemarks+1) {
+        if ($numofpoints >= $config{'maxplacemarks'}+1) {
                 my $deleted = shift @placemarks;
 		$numofpoints--;
                 if ($verbose) {
-                        print "- Max number of placemarks ($maxPlacemarks) hit. Removing oldest.\n";
+                        print "- Max number of placemarks ($config{'maxplacemarks'}) hit. Removing oldest.\n";
                 }
         }
 
 
-	if ($updatecount >= $updateInterval) {
+	if ($updatecount >= $config{'updateinterval'}) {
 		if ($verbose) {
 			print "* Got another $updatecount events, time to update KML file for the $numOfUpdates time\n";
 		}
@@ -1066,7 +985,7 @@ sub processevent {
 		$updatecount=0;
 	} else {
 		if ($verbose) {
-			print "- Not updating KML: Event threshold not reached:  Records = $updatecount / $updateInterval\n"; 
+			print "- Not updating KML: Event threshold not reached:  Records = $updatecount / $config{'updateinterval'}\n"; 
 		}
 	}
 }
@@ -1108,8 +1027,8 @@ sub unified_read() {
                         my $foo=<>;
                 }
 
-		unless ( (grep {$_ eq $src_addr} @ignoreSource) or 
-			 (grep {$_ eq $sid} @ignoreSID) ) {
+		unless ( (grep {$_ eq $src_addr} @ignoresource) or 
+			 (grep {$_ eq $sid} @ignoresids)) {
 
 			processevent("$src_addr", "$dst_addr", "Attack", "$shortmsg", "$longmsg");
 
@@ -1122,7 +1041,7 @@ sub unified_read() {
 
 		unless ($oneFile) {
 			# No point creating a waldo for a single run through a file
-			open WALDO, ">", "$waldo" or die "Unable to open $waldo for writing";
+			open WALDO, ">", "$config{'waldo'}" or die "Unable to open $config{'waldo'} waldo for writing";
 			print WALDO "FILE=$uf_file\n";
 			print WALDO "RECORD=$recnum\n";
 			close(WALDO);
@@ -1148,17 +1067,17 @@ foreach(@sensors) {
 	lookupSensors($_);	
 }
 
-if ("$mode" eq "unified") {
+if ("$config{'mode'}" eq "unified") {
 	print "- Now processing unified file(s).....\n";
 	unless ($oneFile) {
-		$uf_file = &get_latest_file($basefile) || die "no files to get";
+		$uf_file = &get_latest_file($config{'basefilename'}) || die "no files to get";
 		die unless $UF_Data = openSnortUnified($uf_file);
 	
 		if ($verbose) {
 			print "Working on unified file $uf_file\n";
 		}
 	
-		if ( open WALDO, "$waldo" )  {
+		if ( open WALDO, "$config{'waldo'}" )  {
 			while (my $line = <WALDO>){
 				if ( $line =~ m/(^FILE=)(.*)/ ) {
 					$currentfile=$2;
@@ -1193,7 +1112,7 @@ if ("$mode" eq "unified") {
 
 		while (1) {
 		  $old_uf_file = $uf_file;
-		  $uf_file = &get_latest_file($basefile) || die "no files to get";
+		  $uf_file = &get_latest_file($config{'basefilename'}) || die "no files to get";
  	 
 		  if ( $old_uf_file ne $uf_file ) {
 		    closeSnortUnified();

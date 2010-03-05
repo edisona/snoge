@@ -12,4 +12,5 @@ TODO:
 	- Add impact flag styles rather than numeric values
 	- Documentation
 	- Clean up variable names
+	- Check sid, class etc files are available before launch.
 -Leon
