@@ -209,7 +209,13 @@ my $socket=0;
 
 if ("$config{'mode'}" eq "unified" ) {
 	print "- Unified mode * Importing functions:\n";
-	require SnortUnified ; SnortUnified->import(qw(:DEFAULT :meta_handlers));
+	require SnortUnified ; 
+	SnortUnified->import(qw(:ALL));
+	require SnortUnified::MetaData;
+	SnortUnified::MetaData->import(qw(:ALL));
+	require SnortUnified::TextOutput;
+	SnortUnified::TextOutput->import(qw(:ALL));
+
 	unless ( -f $config{'sid-msg'} ) {
 		die ( "Unable to open $config{'sid-msg'} for sid-msg map" ); 
 	}
@@ -994,9 +1000,7 @@ sub processevent {
 
 sub unified_read() {
   while ( $record = readSnortUnifiedRecord() ) {
-    if ( $UF_Data->{'TYPE'} eq 'LOG' ) {
-    	die("Sorry - This system is set to work with alert data, not log data");
-    } else {
+    if (( $UF_Data->{'TYPE'} eq 'ALERT' ) || (( $UF_Data->{'TYPE'} eq 'UNIFIED2' ) && $record->{'TYPE'} eq 7 )) {
 	$recnum++;
 
 	if ($lastrec >= $recnum) {
@@ -1006,8 +1010,18 @@ sub unified_read() {
 	} else {
 		if ($verbose){
 			print "----------------------------------------------------\n";
-			print "* Record: $uf_file: $recnum\n";
+			print "* Read File: $uf_file File Type: $UF_Data->{'TYPE'} Record Number: $recnum \n";
+			if  ( $UF_Data->{'TYPE'} eq 'UNIFIED2' ) {
+				print "* Unified2 record type $record->{'TYPE'} \n"; 
+			}
 		}
+
+		#if  ( $UF_Data->{'TYPE'} eq 'UNIFIED2' ) {
+		#	unless ( $record->{'TYPE'} eq 7 )  {
+		#		return 1;
+		#	}
+		#}
+
 		my $src_addr = inet_ntoa(pack('N', $record->{'sip'}));
 		my $dst_addr = inet_ntoa(pack('N', $record->{'dip'}));
 		my $src_port = $record->{'sp'};
@@ -1032,7 +1046,6 @@ sub unified_read() {
 
 			processevent("$src_addr", "$dst_addr", "Attack", "$shortmsg", "$longmsg");
 
-			# SNIP
 		} else {
 			if ($verbose) { 
 				print "- Ignoring record sid $sid with source IP of $src_addr\n"; 
@@ -1052,6 +1065,8 @@ sub unified_read() {
 	}
 	
 	}
+     } else {
+	print "Unsuported record type $UF_Data->{'TYPE'}\n";
      }
   }
   return 0;
