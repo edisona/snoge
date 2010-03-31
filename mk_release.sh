@@ -9,6 +9,16 @@ TARPATH=..
 FILES="snoge INSTALL README example.csv snoge.conf unified-example.conf"
 VERFILES="snoge"
 
+PERLEXEC=$(head -n 1 snoge)
+
+if [ "$PERLEXEC" == "#!/usr/bin/perl -I .." ]
+then
+	echo "Path set to usr/bin/perl -> Good"
+else
+	echo "Fix perl path in snoge"
+	exit 1
+fi
+
 echo Checking version numbers in code...
 for i in $VERFILES
 do

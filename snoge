@@ -44,7 +44,7 @@ my $record = {};
 # Don't set them here, use the .conf!
 my %config;
 my $mode=0;
-my $snogeversion=1.8;
+my $snogeversion=1.8.1;
 my $defaultlongitude=0;
 my $defaultlatitude=0;
 my $outputFile=0;
@@ -1066,7 +1066,9 @@ sub unified_read() {
 	
 	}
      } else {
-	print "Unsuported record type $UF_Data->{'TYPE'}\n";
+	if ($verbose) {
+		print "Unsuported record type $UF_Data->{'TYPE'}\n";
+	}
      }
   }
   return 0;
