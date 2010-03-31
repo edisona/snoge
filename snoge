@@ -44,7 +44,7 @@ my $record = {};
 # Don't set them here, use the .conf!
 my %config;
 my $mode=0;
-my $version=1.7;
+my $snogeversion=1.8;
 my $defaultlongitude=0;
 my $defaultlatitude=0;
 my $outputFile=0;
@@ -270,7 +270,7 @@ sub usage()
 {
 	print "
 ************************************************************** 
-Security Events -> Google Earth $version - leon.ward\@sourcefire.com
+Security Events -> Google Earth $snogeversion - leon.ward\@sourcefire.com
 
 No warranties are provided or are inferred to the accuracy or reliability of this code.  Use at your own risk.
 

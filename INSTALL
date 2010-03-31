@@ -59,11 +59,15 @@ Open the KML in google earth. As apache is installed on this device, you should 
 Assuming this works, you can then move on to linking snoge into Snort, or Sourcefire
 
 =============== SnoGE and Snort  ================
+
 cd ~/Build
-wget http://snort-unified-perl.googlecode.com/files/SnortUnified_Perl.20070927.tgz
-tar -zxvf ./SnortUnified_Perl.20070927.tgz
-cd snort-unified-perl/
-sudo cp SnortUnified.pm /usr/local/lib/perl/5.10.0
+wget http://snort-unified-perl.googlecode.com/files/SnortUnified_Perl.20100308.tgz
+
+<snip> 
+Need to update these instructions they are out of date for SnortUnified_Perl.20100308!
+You need to install it for SnoGE to work
+</snip>
+
 cd ~/Build
 sudo cpan -i NetPacket::Ethernet
 
