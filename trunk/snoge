@@ -43,7 +43,6 @@ my $record = {};
 # These are explained in the sample config file included with this tool. 
 # Don't set them here, use the .conf!
 my %config;
-my $mode=0;
 my $snogeversion=1.8.1;
 my $defaultlongitude=0;
 my $defaultlatitude=0;
@@ -60,6 +59,7 @@ my $skipunknown=0;
 no warnings 'once';	
 
 # ------------Process command line and config file -------------------
+# TODO: The reason to NOT use getopts has gone away. Convert me!
 
 foreach (@ARGV) {
 	if (("$_" eq "-v") || ("$_" eq "--verbose")) {
@@ -76,9 +76,6 @@ foreach (@ARGV) {
 	}
 	if (("$_" eq "-s") || ("$_" eq "--skip-unknown")) {
 		$skipunknown=1;
-	}
-	if (("$_" eq "-m") || ("$_" eq "--mode")) {
-		$mode=$ARGV[$argc];
 	}
 	if (("$_" eq "-w") || ("$_" eq "--write")) {
 		$outputFile=$ARGV[$argc];
@@ -253,7 +250,7 @@ if ("$config{'mode'}" eq "unified" ) {
 		die("Unable to connect to $config{'dc'} on $config{'port'}");
 	}
 
-} elsif ("$config{'mode'}" eq "csv") {
+} elsif ( $config{'mode'} eq "csv") {
 	unless ($oneFile) {
 		die "CSV mode requires a filename, use --onefile to set filename";
 	}
@@ -270,7 +267,7 @@ sub usage()
 {
 	print "
 ************************************************************** 
-Security Events -> Google Earth $snogeversion - leon.ward\@sourcefire.com
+Security Events -> KML $snogeversion - leon.ward\@sourcefire.com
 
 No warranties are provided or are inferred to the accuracy or reliability of this code.  Use at your own risk.
 
@@ -283,8 +280,7 @@ NOTE - Some options are specific to input modes
   -v or --verbose			Enable verbose mode
   -r or --refresh <filename>		Create a \"server\" KML file for automated updates
   -o or --onefile <filename>		One time run with a single unified|csv file.
-  -s or --skip-unknown			Skip events that we cant location
-  -m or --mode				Set imput mode (overrides .conf)
+  -s or --skip-unknown			Skip events that we cant locate
 ";
 }
 
@@ -1156,7 +1152,7 @@ if ("$config{'mode'}" eq "unified") {
 		}
 	}
 
-} elsif ("$mode" eq "estreamer") {
+} elsif ("$config{'mode'}" eq "estreamer") {
 	print "Processing estreamer data...\n";
 	req_data($socket, 0, $FLAG_METADATA::SFStreamer);  # Function defined in SFStreamer to request data
 	while ($socket) {
@@ -1267,7 +1263,7 @@ if ("$config{'mode'}" eq "unified") {
 
 	close($socket);
 
-} elsif ("$mode" eq "csv") {
+} elsif ("$config{'mode'}" eq "csv") {
 	print "Processing CSV file $oneFile...\n";
 
 	while (my $line=<CSVFILE>) {
