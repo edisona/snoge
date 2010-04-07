@@ -820,6 +820,7 @@ sub dumpKML{
         print $KML_FILE "</Document>\n";
         print $KML_FILE "</kml>\n";
         close($KML_FILE);
+	print ".";
 }
 sub get_latest_file($) {
   my $filemask = shift;
@@ -1140,7 +1141,10 @@ if ("$config{'mode'}" eq "unified") {
 	} else {
 		print "Working on single file $oneFile\n";
 		$uf_file=$oneFile;
-		$UF_Data = openSnortUnified($uf_file) || die "unable to open $uf_file";
+		unless ( -r $uf_file) {
+			die("Access denied on $uf_file. Check file permissions");
+		}
+		$UF_Data = openSnortUnified($uf_file) || die "Unable to open $uf_file";
 		unified_read();
 	}
 
