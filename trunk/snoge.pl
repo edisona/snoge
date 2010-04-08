@@ -448,6 +448,8 @@ sub updateDist{
 sub dumpKML{
         my $numofpoints = @placemarks;
         my $eventcount=0;
+	my %summary=();
+	my $summaryText=0;
 
         if ($verbose) {
                 print "- Creating a KML file : $outputFile\n";
@@ -721,7 +723,21 @@ sub dumpKML{
                 my $dstlongitude = $_->[5];
                 my $dstlatitude = $_->[6];
                 my $url = $_->[8];
+		my $msg = $_->[9];
+		# Generate summary data
 
+		unless ( $summary{$msg} ) {
+			$summary{$msg} = 1; 
+		} else {
+			$summary{$msg}++;
+		}
+
+		$summaryText="-------- Summary --------<br>";
+		foreach (keys %summary) {
+			$summaryText=$summaryText . "$_ = $summary{$_} <br>";
+			#print "$_ = $summary{$_} \n";
+		}
+		
 		if ($plotnum == $numofpoints) {
 		
 			if ($verbose) {
@@ -731,9 +747,6 @@ sub dumpKML{
 			$style="Last";
 		}
 
-                if ($verbose) {
-                        print "- Plotting placemark $plotnum $style $name \n";
-                }
 
                 print $KML_FILE "
                 <Placemark>
@@ -812,6 +825,7 @@ sub dumpKML{
                         <![CDATA[ 
                         <table width=\"400\"/></table> 
                         Snort instance - $name</br>
+			$summaryText<br>
                         ]]> 
                         </description>
                 </Placemark>\n";
@@ -820,8 +834,8 @@ sub dumpKML{
         print $KML_FILE "</Document>\n";
         print $KML_FILE "</kml>\n";
         close($KML_FILE);
-	print ".";
 }
+
 sub get_latest_file($) {
   my $filemask = shift;
   my @ls = <$filemask*>;
@@ -874,6 +888,8 @@ sub processevent {
 		style= $style
 		shortmsg= $shortmsg	
 		longmsg= $longmsg\n";
+	} else {
+		print "Processing Record [$recnum] \r";
 	}
 
 	# Find Destination 
@@ -944,7 +960,8 @@ sub processevent {
                            "$dstlongitude",
                            "$dstlatitude",
                            "$srccity",
-                           "url"]);
+                           "url",
+			   "$shortmsg"]);
 
 	# Update event distribution for the city of $src_addr   
 	if ($verbose) {
