@@ -1,129 +1,149 @@
-#summary SnoGE Installation guide
+=SnoGE from scratch=
+_Leon Ward - leon@rm-rf.co.uk_
 
-= SnoGE from scratch = 
+==About==
 
-Leon Ward
+SnoGE a security event visualisation tool, it takes in an event input feed from one of three data source types and proceeds to summarise and display those security events in a KML formatted file for use in a tool like Google Earth. Supported input modes are currently
 
-== Installation ==
+  * Sort Unified files
+  * CSV file 
+  * Sourcefire Estreamer (from Defense Center or 3D Sensor)
 
-These instructions were performed on a "clean" installation of Debian Lenny, they should be similar for any Debian based Linux distribution such as Ubuntu. You should be able to copy/paste most of the commands into a terminal to simplify the process.
+==Installation==
 
-=== Platform Set-up ===
-Depending on what mode you plan to run SnoGE on, you will need a selection of the below packages.
-<pre>
+These instructions were performed on a "clean" installation of Debian Lenny and they should be similar for any Debian based Linux distribution such as Ubuntu. 
+
+===Platform Set-up===
+
+SnoGE has multiple dependancies that you need to satisfy before it can run. Many of these dependancies may already be on your platform, others you will need to download and install yourself. Depending on the input mode you want to use, the dependancy list changes so you may not need everything.
+
+Firstly lets install a few extra packages from Debian's repository to prepare our platform. 
+{{{
 sudo apt-get install build-essential subversion apache2 unzip libio-socket-ssl-perl
-mkdir ~/Build 
-</pre>
-1) Download SnoGE from GoogleCode.
+}}}
 
-For stable installations, please use the latest tarball found in the downloads section, those who like to live on the bleeding edge can check the source out of svn. I recommend you try the SVN code first, and if it fails fall-back to a tar-ball.
+===Download SnoGE from GoogleCode===
 
-=== Stable package ===
-<pre>
-cd ~/Build
-wget http://snoge.googlecode.com/files/snoge-1.6.tgz 
-tar -zxvf snoge-1.5.tgz 
-</pre>
-=== SVN Version (expect some breakage) ===
-<pre>
+For a "stable" installation, please use the latest tarball found in the downloads section. Those who like to live on the bleeding edge can check the source out of svn. You can expect the code in SVN to be broken, so it's best to start off with a tarball release unless you want bleeding edge features.
+
+To download the latest tarsal visit http://googlecode.com/p/snoge/ . Once downloaded, copy and untar the archive into a tomporary location. In my example I will be using ~/Build (that equates to /home/<username/Build as an absolute path).
+
+If you choose to download the bleeding edge Version from SVN (that is most likely broken), use the following command.
+
+{{{
 cd ~/Build
 svn checkout http://snoge.googlecode.com/svn/trunk/ snoge-read-only
-</pre>
-2) Install the Geo::IP::PurePerl module via CPAN
+}}}
 
-If this is the first time you have used cpan, it may need configuring, and unless you are running some archaic version most of this configuration should be automatically.
-<pre>
+===Geolocation dependencies===
+Regardless of input mode, you will need to get hold of the Geolocation (looks up geographical location of an IP address) library for use in Perl. To do this you can use CPAN. A CPAN tutorial is out of scope for this document, if you are not familiar with it I suggest you google for a while.
+
+If this is the first time you have used cpan, it may need configuring, and unless you are running some archaic version most of this configuration should be performed automatically.
+{{{
 cd ~/Build
 sudo cpan -i Geo::IP::PurePerl
-
 wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
 gunzip ./GeoLiteCity.dat.gz
 sudo mkdir /usr/local/share/GeoIP
 sudo cp GeoLiteCity.dat /usr/local/share/GeoIP/
-</pre>
+}}}
 
-3) Set up an output directory that can be accessed via http
-You can of course complete a more secure / complex apache configuration, but this is out of scope for this install doc.
-<pre>
+==Operation==
+SnoGE can operate in a one-shot mode where it processes a single unified or CSV file, writes an output KML, and then quits. It can also run in a more interesting auto-updating mode for use on big displays that SOC people like to hand on walls. The auto-update mode refreshes the event data every X seconds (this is a user controlled time value) and uses a static parent -> dynamic child operation style. The user opens the static parent KML file in their Google Earth client, this parent KML file makes the client (google earth) re-load the data from the clild KML every X seconds.
+
+
+The below diagram hopefully explains this process a little better.
+
+<img src="http://rm-rf.co.uk/downloads/SnoGE_Diagram1.png">
+
+To use the auto-update mode you will need a webserver to provide the client KML file running on the same system as the snoge process. 
+ 
+Set up an output directory that can be accessed via http. You can of course complete a more secure / complex apache configuration, but this is out of scope for this install doc.
+
+{{{
 sudo mkdir /var/www/snoge
 sudo chown lward /var/www/snoge
-</pre>
-4) Test snoge
-<pre>
-cd ~/Build/snoge/
-</pre>
-Configure SnoGE for CSV mode 
-<pre>
-./snoge -c snoge.conf --onefile example.csv -m csv -w /var/www/snoge/snoge.kml
-</pre>
+}}}
+
+Firstly, lets test snoge in CSV mode to make sure that the Geolocation and your perl environment works as you would expect.
+
+===Test SnoGE for CSV mode=== 
+
+./snoge.pl -c csv-example.conf --onefile example.csv -w /var/www/snoge/snoge.kml
 
 You should see output that looks a little like the below
-<pre>
 
 CSV File mode (processing example.csv)
 Processing CSV file example.csv...
-KML file /var/www/snoge/snoge.kml created.
-</pre>
-Open the KML in google earth. As apache is installed on this device, you should be able to point a web browser to http://hostname/snoge/snoge.kml
+KML file /var/www/snoge/snogei.kml created.
 
-Assuming this works, you can then move on to linking snoge into Snort, or Sourcefire
+Open the KML file in google earth. If you have installed apache is installed on this device, you should be able to point a web browser to http://<hostname>/snoge/snoge.kml
 
-== SnoGE and Snort ==
-<pre>
+Assuming this works, you can then move on to the next step of linking SnoGE into Snort, or Sourcefire's Defense Center.
+
+
+==SnoGE and Snort==
+
+Snoge is able to process unified and unified2 log files by using Jason Brvenik's snort-unified-perl perl module that can be found on googlecode. To use SnoGE with Snort you need this installed and working. 
+
+{{{
 cd ~/Build
-wget http://snort-unified-perl.googlecode.com/files/SnortUnified_Perl.20070927.tgz
-tar -zxvf ./SnortUnified_Perl.20070927.tgz
+wget http://snort-unified-perl.googlecode.com/files/SnortUnified_Perl.20100308.tgz
 cd snort-unified-perl/
 sudo cp SnortUnified.pm /usr/local/lib/perl/5.10.0
+sudo cp -r SnortUnified /usr/local/lib/perl/5.10.0
 cd ~/Build
-sudo cpan -i NetPacket::Ethernet
-</pre>
+sudo cpan NetPacket::Ethernet
+}}}
 
-Find a unified file to test with, and give it a shot:
+Find a unified1 alert, or a unified2 log file to test with, and give it a shot:
 
-./snoge -c snoge.conf -m unified -o /tmp/snort.alert.1248270139 
+./snoge -c unified-example.conf --onefile <unified file> -w /var/www/snoge/snoge.kml 
 
+{{{
 You should see output a little like this
-<pre>
-lward@snogeinstall:~/Dev/snoge$ ./snoge -c snoge.conf -m unified -o /tmp/snort.alert.1248270139 
 Unified mode * Importing functions:
 - Now processing unified file(s).....
 Working on single file /tmp/snort.alert.1248270139
 lward@snogeinstall:~/Dev/snoge$ 
-</pre>
-== SnoGE and Sourcefire ==
+}}}
 
-Download the Event Streamer SDK from the Sourcefire support website, it can be found filed under file Downloads / Version Number / Utilities / EventStreamerSDK-version.zip. 
-You need version 4.8 of this SDK SnoGE doesn't work with the 4.9 SDK (this still works fine with Sourcefire 3D version 4.9, it's just the SDK version).
+If something doesn't work, add a "-v" argument for verbose mode and try to work out what's not installed correctly on your platform.
 
-Once downloaded, copy the tarball onto the target systm and place in ~/Build
-<pre>
+==SnoGE and Sourcefire==
+
+Download version 4.8 of the Event Streamer SDK from the Sourcefire support website, it can be found tucked away under Downloads / 4.8 / Utilities / EventStreamerSDK-<version>.zip. Once downloaded, copy the tarball onto the target system and place it in ~/Build. *DO NOT USE version 4.9 of the Estreamer SDK*, stick with 4.8. This doesn't prevent operation with version 4.9 of the 3D System, it works fine with the 4.8 SDK.
+
+{{{
 cd ~/Build
-sudo cpan -i NetPacket::Ethernet
+sudo cpan NetPacket::Ethernet
 unzip EventStreamerSDK-4.8.0.2.zip
 cd examples/perl_client/ 
 sudo cp SFStreamer.pm /usr/local/lib/perl/5.10.0/
-</pre>
-Complete the following tasks on your Defense Center, or 3D Sensor
+}}}
 
-* Navigate to Operations / Configuration / Estreamer
-* Click on "Create Client"
-* Enter the IP address or Hostname of the system running SnoGE. Leave the password field blank
-* Download the generated certificate and copy it onto the host running Snoge
-* Convert the certificate from PKCS12 format 
-    hint -> openssl pkcs12 -nodes -in ~/192.168.222.136.pkcs12 > ~/certfile.txt
+===Complete the following tasks on your Defense Center, or 3D Sensor ===
 
-Test snoge with estreamer
-<pre>
-lward@snogeinstall:~/Dev/snoge$ ./snoge -c snoge.conf -m estreamer 
+  # Navigate to Operations / Configuration / Estreamer
+  # Click on "Create Client"
+  # Enter the IP address or Hostname of the system running SnoGE. Leave the password field blank
+  # Download the generated certificate and copy it onto the host running Snoge
+  # Convert the certificate from PKCS12 format  (hint -> openssl pkcs12 -nodes -in ~/192.168.222.136.pkcs12 > ~/certfile.txt )
+
+===Test SnoGE with Estreamer===
+
+Edit the estreamer-example.conf file, and enter the details for your Defense Center.
+{{{
+lward@snogeinstall:~/Dev/snoge$ ./snoge -c estreamer-example.conf 
 Estreamer Mode - Importing functions
 Connecting to DC 192.168.222.20
 Connected to DC 192.168.222.20 on 8302
 Processing estreamer data...
-
 <It will stop here while it process's the event feed>
+}}}
 
 If you want to find re-assurance that SnoGE is functioning, add the -v (verbose) option. It will look something more like this:
+{{{
 lward@snogeinstall:~/Dev/snoge$ ./snoge -c snoge.conf -m estreamer -v -p
 Config: Input mode is estreamer
 CONFIG: Creating output file /dev/null  
@@ -182,13 +202,8 @@ ProcessEvent:
 - Creating a KML file : /dev/null
 - Calculating Ingress Bars 
 - 11 events in collection
+}}}
 
 <snip>
-</pre>
 
-Good luck, and happy plotting.
-
-- 2 locations
-- Total height is 200000
-
-</pre>
+_Good luck, and happy plotting_.
