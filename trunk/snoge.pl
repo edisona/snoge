@@ -33,7 +33,7 @@ use Data::Dumper;
 use Socket;
 use Geo::IP::PurePerl;
 use Module::Load;
-
+use Getopt::Long;
 	
 my $configFile=0;
 my $UF_Data = {};
@@ -55,36 +55,47 @@ my $pause=0;	# a pause for debug after each record
 my $argc=1;
 my $dcurl=0;		# URL to access the DC for viz.cgi
 my $skipunknown=0;
-
+my $parent;
 no warnings 'once';	
 
 # ------------Process command line and config file -------------------
 # TODO: The reason to NOT use getopts has gone away. Convert me!
 
-foreach (@ARGV) {
-	if (("$_" eq "-v") || ("$_" eq "--verbose")) {
-		$verbose=1;
-	}
-	if (("$_" eq "-c") || ("$_" eq "--config")) {
-		$configFile=$ARGV[$argc];
-	}
-	if (("$_" eq "-o") || ("$_" eq "--onefile")) {
-		$oneFile=$ARGV[$argc];
-	}
-	if (("$_" eq "-r") || ("$_" eq "--refresh")) {
-		$refresh=$ARGV[$argc];
-	}
-	if (("$_" eq "-s") || ("$_" eq "--skip-unknown")) {
-		$skipunknown=1;
-	}
-	if (("$_" eq "-w") || ("$_" eq "--write")) {
-		$outputFile=$ARGV[$argc];
-	}
-	if (("$_" eq "-p") || ("$_" eq "--pause")) {
-		$pause=1;
-	}
-	$argc++;
-}
+#foreach (@ARGV) {
+#	if (("$_" eq "-v") || ("$_" eq "--verbose")) {
+#		$verbose=1;
+#	}
+#	if (("$_" eq "-c") || ("$_" eq "--config")) {
+#		$configFile=$ARGV[$argc];
+#	}
+#	if (("$_" eq "-o") || ("$_" eq "--onefile")) {
+#		$oneFile=$ARGV[$argc];
+#	}
+#	if (("$_" eq "-p") || ("$_" eq "--parent")) {
+#		$parent=$ARGV[$argc];
+#	}
+#	if (("$_" eq "-s") || ("$_" eq "--skip-unknown")) {
+#		$skipunknown=1;
+#	}
+#	if (("$_" eq "-w") || ("$_" eq "--write")) {
+#		$outputFile=$ARGV[$argc];
+#	}
+#	if (("$_" eq "-p") || ("$_" eq "--pause")) {
+#		$pause=1;
+#	}
+#	$argc++;
+#}
+
+GetOptions (    'c|config=s' => \$configFile,
+                'o|onefile=s' => \$oneFile,
+                'p|parent=s' => \$parent, 
+                's|skipunknown=s' => \$skipunknown,
+                'w|write=s' => \$outputFile,
+                'z|pause' => \$pause,
+		'v|verbose' => \$verbose,
+                );
+
+
 
 unless ($configFile) {
 	print "ERROR: I need a config file. Take a look at usage\n";
@@ -108,7 +119,7 @@ $config{'ignoresids'}=0;
 $config{'updateinterval'}="0";
 $config{'maxplacemarks'}="100";
 $config{'maxstats'}="200";
-$config{'defaultlocation'}="rm-rf.co.uk";
+$config{'defaultlocation'}="80.68.89.43"; 	# Set to rm-rf.co.uk
 $config{'kmlfile'}="./output.kml";
 $config{'refreshsecs'}="30";
 $config{'waldo'}="/dev/null";
@@ -232,10 +243,10 @@ if ("$config{'mode'}" eq "unified" ) {
 	require IO::Socket::SSL; IO::Socket::SSL->import();
 	require SFStreamer ; 
 	SFStreamer->import(qw(:DEFAULT));
-	#require SFStreamer ; SFStreamer->import(qw(:DEFAULT));
-	#require SFSGlobals ; SFSGlobals->import(qw(:DEFAULT)); 
+	require SFStreamer ; SFStreamer->import(qw(:DEFAULT));
+	require SFSGlobals ; SFSGlobals->import(qw(:DEFAULT)); 
 	print "Connecting to DC $config{'dc'}\n";
-	#print $FLAG_METADATA::SFStreamer;
+	print $FLAG_METADATA::SFStreamer;
 	unless (-f $config{'certfile'}) {
 		die "Unable to find SSL cert $config{'certfile'}";
 	}
@@ -278,7 +289,7 @@ NOTE - Some options are specific to input modes
 
   -c or --config <filename>		Specify config file
   -v or --verbose			Enable verbose mode
-  -r or --refresh <filename>		Create a \"server\" KML file for automated updates
+  -p or --parent <filename>		Create a \"parent\" KML file for automated updates
   -o or --onefile <filename>		One time run with a single unified|csv file.
   -s or --skip-unknown			Skip events that we cant locate
 ";
@@ -336,19 +347,18 @@ sub lookupDefaults{
         } else {
                 print "- Cant find default location for $defaultlocation!\n";
         }
-
 }
 
 
-sub serverKML{
-	print "Creating a server KML to serve event updates 
-	Filename: $refresh
-	Update interval: $config{'refreshsecs'}
-	ImageURL: $config{'imageurl'}
-	Banner: $config{'banner'}
-	";
+sub parentKML{
+	print "Creating a parent KML to serve event updates 
+	- Filename: $parent
+	- Update interval: $config{'refreshsecs'}
+	- UpdateURL: $config{'updateurl'}
+	- ImageURL: $config{'imageurl'}
+	- Banner: $config{'banner'} \n";
 	
-	open SERVERKML, ">", "$refresh" or die "Unable to open $refresh for writing";
+	open SERVERKML, ">", "$parent" or die "Unable to open $parent for writing";
 	print SERVERKML "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 	<kml xmlns=\"http://earth.google.com/kml/2.0\">
 	<Folder>
@@ -370,8 +380,12 @@ sub serverKML{
                 	<!--<flyToView>1</flyToView>-->
                 	<Url>
                         	<href>$config{'updateurl'}</href>
-                        	<refreshMode>onInterval</refreshMode>
-                        	<refreshInterval>$config{'refreshsecs'}</refreshInterval>
+			";
+	if ($config{'refreshsecs'}) {
+		print SERVERKML " <refreshMode>onInterval</refreshMode>
+				  <refreshInterval>$config{'refreshsecs'}</refreshInterval> \n"
+	}
+	print SERVERKML "
                 	</Url>
                 	<refreshVisibility>1</refreshVisibility>
         	</NetworkLink>
@@ -1089,9 +1103,9 @@ sub unified_read() {
 }
 
 # ------------------- MAIN --------------------
-if ($refresh) {
-	# Refresh is set, creating a serverKML file, and then quit
-	serverKML;
+if ($parent) {
+	# parent is set, creating a parentKML file, and then quit
+	parentKML;
 	exit 0;
 }
 foreach(@sensors) {
