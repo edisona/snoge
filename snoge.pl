@@ -1,5 +1,10 @@
 #!/usr/bin/perl -I ..
 
+
+# TODO 
+# Skipunknown looks strange in results - check it works as expected.
+
+
 #########################################################################################
 # Copyright (C) 2009 Leon Ward
 # Snoge
@@ -45,7 +50,7 @@ my $endtime=1586439068; 	# Looks like SnoGE will break in April 2020 :-P . This 
 my $starttime=0;
 no warnings 'once';	
 
-my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$skipunknown,$parent,$configFile,$lastwindow,$debug);
+my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$skipunknown,$parent,$configFile,$lastwindow,$debug,$lastupdatetime);
 
 
 GetOptions (    'c|config=s' => \$configFile,
@@ -86,7 +91,8 @@ $config{'dc'}="192.168.222.20";
 $config{'port'}="8302";
 $config{'certfile'}="./certfile.txt";
 $config{'ignoresids'}=0;
-$config{'updateinterval'}="0";
+$config{'eventupdateinterval'}="0";
+$config{'timeupdateinterval'}="0";
 $config{'maxplacemarks'}="100";
 $config{'maxstats'}="200";
 $config{'defaultlocation'}="80.68.89.43"; 	# Set to rm-rf.co.uk
@@ -119,7 +125,8 @@ if ($debug) {
 	print "CONFIG: Ignoring Source      : $config{'ignoresource'}\n";
 	print "CONFIG: Ignoring Destination : $config{'ignoredestination'}\n";
 	print "CONFIG: Ignoring SIDs        : $config{'ignoresids'}\n";
-	print "CONFIG: Updateinterval       : $config{'updateinterval'} events \n";
+	print "CONFIG: Event updateinterval : $config{'eventupdateinterval'} events \n";
+	print "CONFIG: Time updateinterval  : $config{'timeupdateinterval'} seconds \n";
 	print "CONFIG: Maxplacemarks        : $config{'maxplacemarks'} \n";
 	print "CONFIG: Maximum Statistics   : $config{'maxstats'} \n";
 	print "CONFIG: Default location     : $config{'defaultlocation'} \n";
@@ -264,7 +271,7 @@ sub update_time_window() {
         $starttime=($now - $lastwindow);
 
         if ($debug){
-                print "* Lastwindow update - Removing $lastwindow seconds from ". localtime($now) ." Starting at " . localtime($starttime) . " \n";
+                print "* Timewindow update - Size $lastwindow seconds \n - Start : " . localtime($starttime) ." \n - End   : " . localtime($now) . " \n";
         }
 }
 
@@ -816,6 +823,7 @@ sub dumpKML{
         print $KML_FILE "</Document>\n";
         print $KML_FILE "</kml>\n";
         close($KML_FILE);
+	$lastupdatetime=time();
 }
 
 sub get_latest_file($) {
@@ -869,7 +877,7 @@ sub processevent {
 	}
 	
 	if ($debug) {
-		print "ProcessEvent: 
+		print "  ProcessEvent: 
 		src_addr= $src_addr
 		dst_addr= $dst_addr
 		style= $style
@@ -887,9 +895,9 @@ sub processevent {
 		}
 
 		# and quit if we get an older record than "End time"
-		if ( $timestamp ge $endtime) {
+		if ( $timestamp ge $endtime ) {
 			if ($debug) {
-				print "\nEnd. Timestamo $timestamp " . localtime($timestamp) . " is ge than end time $endtime (" . localtime($endtime) . "). End \n";
+				print "\nEnd. Timestamp $timestamp " . localtime($timestamp) . " is ge than end time $endtime (" . localtime($endtime) . "). End \n";
 			}
 			die "End time hit";
 		}		
@@ -955,6 +963,10 @@ sub processevent {
 		}
 	}
 
+	if (( "$srccountry_name" eq "UnknownCountry" ) and ( "$dstcountry_name" ne "UnknownCountry")) {
+		print "Swapping direction for better plot of $shortmsg $srccountry_name -> $dstcountry_name\n";
+	}
+
        	push(@placemarks, ["$srclongitude",
                            "$srclatitude",
                            "$shortmsg - $srccity, $srccountry_name",
@@ -968,10 +980,6 @@ sub processevent {
 			   "$timestamp"]);
 
 	# Update event distribution for the city of $src_addr   
-	if ($debug) {
-		print "* updating dists\n";
-	}
-
         if ($srccity) {
         	if ($debug){
 			print "- Got city  \n";
@@ -1000,27 +1008,40 @@ sub processevent {
         }
 
 	# Remove events from the array that have a timestamp older than the start of our "last window"
+	#
 	foreach (@placemarks) {
 		my $placemarkTimestamp=$_->[10];
-		#if ( $placemarkTimestamp le $starttime ) {
-			if ($debug) {
-				print "Found an old event with time of " . localtime($placemarkTimestamp) . 
+		if ( $placemarkTimestamp le $starttime ) {
+			if ($verbose) {
+				print "Removing a time-stale event with timestamp of " . localtime($placemarkTimestamp) . 
 				" - Window starts at " . localtime($starttime) . "\n";
-			}	
-		#}
+			}
+			shift @placemarks;	
+		}
 	}
 
-
-	if ($updatecount >= $config{'updateinterval'}) {	# TODO Add "or last window cull"
+	my $now = time();
+	if ( ($updatecount >= $config{'eventupdateinterval'}) and
+	     ( ($now - $config{'timeupdateinterval'}) >= $lastupdatetime ) ) {	
 		if ($verbose) {
-			print "* Got another $updatecount events, time to update KML file for the $numOfUpdates time\n";
+			if ( ($now - $config{'timeupdateinterval'}) >= $lastupdatetime ) {
+				print "* Hit update TIME -> Time is " . localtime($now) . 
+					" Last update was " . localtime($lastupdatetime) . 
+ 					" Greater than timeupdateinterval of $config{'timeupdateinterval'} \n" ;
+			}
+			if ( $updatecount >= $config{'eventupdateinterval'} ) {
+				print "* Hit update EVENT COUNT -> Count is $updatecount\n";
+			}
 		}
 	       	&dumpKML;
 		$numOfUpdates++;
 		$updatecount=0;
 	} else {
 		if ($debug) {
-			print "- Not updating KML: Event threshold not reached:  Records = $updatecount / $config{'updateinterval'}\n"; 
+			print "- Not updating KML: \n    " .
+			"Event threshold :  Records = $updatecount / $config{'eventupdateinterval'}\n    " .
+			"Time threshold $config{'timeupdateinterval'}: Lastupdate " . localtime($lastupdatetime) . " Current time is " . localtime($now) . " \n";
+		
 		}
 	}
 }
@@ -1195,8 +1216,8 @@ if ("$config{'mode'}" eq "unified") {
 	}
 
 } elsif ("$config{'mode'}" eq "estreamer") {
-	print "Processing estreamer data...\n";
-	req_data($socket, 0, $FLAG_METADATA::SFStreamer);  # Function defined in SFStreamer to request data
+	print "Processing estreamer data from $starttime ( " . localtime($starttime) . " )...\n";
+	req_data($socket, $starttime, $FLAG_METADATA::SFStreamer);  # Function defined in SFStreamer to request data
 	while ($socket) {
 
 	        my %event = get_feed($socket);
@@ -1210,7 +1231,6 @@ if ("$config{'mode'}" eq "unified") {
                 	my $impact = $event{'impact_flag'};
        	         	my $src_addr = $event{'src_addr'};
        		        my $dst_addr = $event{'dst_addr'};
-     		        my $timestamp = $event{'event_sec'};
                 	my $gid = $event{'gen'};
                 	my $sid = $event{'sid'};
                 	my $src_port = $event{'src_port'};
@@ -1226,6 +1246,11 @@ if ("$config{'mode'}" eq "unified") {
                 	my $srccountry_code3=0;
                 	my $dstcountry_code3=0;
                 	my $msg=$rule_map{$event{'gen'}.":".$event{'sid'}};
+			# It turns out that $event{'event_sec'} isn't in epoch as expected, and it lacks a TZ
+				
+			$event{'event_sec'} = `date -d \"$event{'event_sec'}\ UTC" +%s`;
+			chomp $event{'event_sec'};
+     		        my $timestamp = $event{'event_sec'};
 
 			my $flag = "Unknown flag color";
         		my $blocked = "No";
@@ -1289,7 +1314,7 @@ if ("$config{'mode'}" eq "unified") {
 
 			if ($verbose) {
                         	print "********* New Event *********\n";
-                        	print "*  Got event $timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Pri $priority : Impact $impact : Flag $flag\n";
+                        	print "* Got event " . localtime($timestamp) . " $gid:$sid - $msg $src_addr -> $dst_addr : Pri $priority : Impact $impact : Flag $flag\n";
                 	}
 
 			my $shortmsg="$msg";
