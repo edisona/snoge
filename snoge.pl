@@ -35,56 +35,18 @@ use Geo::IP::PurePerl;
 use Module::Load;
 use Getopt::Long;
 	
-my $configFile=0;
+#my $configFile=0;
 my $UF_Data = {};
 my $record = {};
 
 # ---------- Config file Defaults ----------
-# These are explained in the sample config file included with this tool. 
-# Don't set them here, use the .conf!
-my %config;
 my $snogeversion=1.8.1;
-my $defaultlongitude=0;
-my $defaultlatitude=0;
-my $outputFile=0;
-my $classfile=0;
-my $verbose=0;	# For debugging - way to verbose for normal usage
-my $oneFile=0;
-my $refresh=0;
-my $pause=0;	# a pause for debug after each record
-my $argc=1;
-my $dcurl=0;		# URL to access the DC for viz.cgi
-my $skipunknown=0;
-my $parent;
+my $endtime=1586439068; 	# Looks like SnoGE will break in April 2020 :-P . This is a dirty hack, but works for the time being.
+my $starttime=0;
 no warnings 'once';	
 
-# ------------Process command line and config file -------------------
-# TODO: The reason to NOT use getopts has gone away. Convert me!
+my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$skipunknown,$parent,$configFile,$lastwindow,$debug);
 
-#foreach (@ARGV) {
-#	if (("$_" eq "-v") || ("$_" eq "--verbose")) {
-#		$verbose=1;
-#	}
-#	if (("$_" eq "-c") || ("$_" eq "--config")) {
-#		$configFile=$ARGV[$argc];
-#	}
-#	if (("$_" eq "-o") || ("$_" eq "--onefile")) {
-#		$oneFile=$ARGV[$argc];
-#	}
-#	if (("$_" eq "-p") || ("$_" eq "--parent")) {
-#		$parent=$ARGV[$argc];
-#	}
-#	if (("$_" eq "-s") || ("$_" eq "--skip-unknown")) {
-#		$skipunknown=1;
-#	}
-#	if (("$_" eq "-w") || ("$_" eq "--write")) {
-#		$outputFile=$ARGV[$argc];
-#	}
-#	if (("$_" eq "-p") || ("$_" eq "--pause")) {
-#		$pause=1;
-#	}
-#	$argc++;
-#}
 
 GetOptions (    'c|config=s' => \$configFile,
                 'o|onefile=s' => \$oneFile,
@@ -93,6 +55,10 @@ GetOptions (    'c|config=s' => \$configFile,
                 'w|write=s' => \$outputFile,
                 'z|pause' => \$pause,
 		'v|verbose' => \$verbose,
+		'd|debug' => \$debug,
+		'l|last=s'	=> \$lastwindow,
+		'j|starttime=s' => \$starttime,
+		'k|endtime=s'  => \$endtime,
                 );
 
 
@@ -103,6 +69,10 @@ unless ($configFile) {
 	exit 1;
 }
 
+if ($debug) {
+	# If debug is on, lets add verbose o/p
+	$verbose=1;
+}
 
 # Default values for configuration. These are all set in the config file. Don't change them here.
 
@@ -141,11 +111,7 @@ open my $config, '<', $configFile or die "Unable to open config file $configFile
 close $config;
 #print Dumper %config;
 
-
-
-
-
-if ($verbose) { 
+if ($debug) { 
 	print "CONFIG: Input mode is        : $config{'mode'}\n";
 	print "CONFIG: sid-msg file is      : $config{'sid-msg'}\n";
 	print "CONFIG: gen-msg file is      : $config{'gen-msg'}\n";
@@ -180,12 +146,6 @@ unless ($outputFile) {
 my @sensors=split(/ /, $config{'sensors'});
 my @ignoresids=split(/ /, $config{'ignoresids'});
 my @ignoresource=split(/ /, $config{'ignoresource'});
-
-open (CONFIG,"$configFile") or die "Unable to open config file $configFile";
-while (my $line = <CONFIG>) {
-
-
-}
 
 # ------ These variables are not for human consumption ------
 my $startup=localtime();
@@ -282,17 +242,30 @@ Security Events -> KML $snogeversion - leon.ward\@sourcefire.com
 
 No warranties are provided or are inferred to the accuracy or reliability of this code.  Use at your own risk.
 
-NOTE - Some options are specific to input modes
-	- Snort Unified (Snort's preferred output format)
-	- Sourcefire Estreamer (Sourcefire Defense Center and 3D Sensors)
-	- CSV files (Read the documentation for details)
-
   -c or --config <filename>		Specify config file
   -v or --verbose			Enable verbose mode
+  -d or --debug				Enable Verbose + debug output
   -p or --parent <filename>		Create a \"parent\" KML file for automated updates
   -o or --onefile <filename>		One time run with a single unified|csv file.
   -s or --skip-unknown			Skip events that we cant locate
+
+--- Time Window Settings (optional)
+  -l or --last				Show last X minutes of data
+  -k or --start				Start timestamp (use with --end)
+  -l or --end				End timestamp (use with --start)
+  -z or --pause				Pause for keypress after each event (for debugging)
+
 ";
+}
+
+sub update_time_window() {
+
+        my $now=time();
+        $starttime=($now - $lastwindow);
+
+        if ($debug){
+                print "* Lastwindow update - Removing $lastwindow seconds from ". localtime($now) ." Starting at " . localtime($starttime) . " \n";
+        }
 }
 
 sub lookupSensors{
@@ -311,7 +284,7 @@ sub lookupSensors{
                 my $dma_code,
                 my $area_code) = $gi->get_city_record($sensor)) {
 
-                if ($verbose) {
+                if ($debug) {
                         print "- Adding sensor $sensor in $city, $country_name \n";
                 }
 
@@ -400,7 +373,7 @@ sub updateDist{
         my $longitude=shift;
         my $latitude=shift;
 
-        if ($verbose){
+        if ($debug){
                 print "- Updating Dist for $city\n";
         }
 
@@ -408,11 +381,11 @@ sub updateDist{
                 my $visits = $cities{$city};
                 $visits++;
                 $cities{$city} = $visits;
-                if ($verbose){
+                if ($debug){
                         print "- $visits events are now in cache for $city\n";
                 }
         } else {
-                if ($verbose) {
+                if ($debug) {
                         print " - First event from $city\n";
                 }
                 $cities{$city} = "1";
@@ -425,7 +398,7 @@ sub updateDist{
         # Only keep track of the last maxstats events
         if ( @citiestracked >= $config{'maxstats'} ){
                 my $rmcity=shift @citiestracked;
-                if ($verbose) {
+                if ($debug) {
                         print " * Hit max event count of $config{'maxstats'}\n";
                         print " - Oldest stat is from $rmcity - $cities{$rmcity} visits\n";
                         print " - rmcity is  $rmcity - $cities{$rmcity} visits\n";
@@ -434,20 +407,14 @@ sub updateDist{
                 my $visits=$cities{$rmcity};
                 $visits--;
                 $cities{$rmcity} = $visits;
-                if ($verbose) {
+                if ($debug) {
                         print "$rmcity, now has $cities{$rmcity} visits\n";
                 }
         }
 
         # Prune cities with "0" visits
         foreach( keys %cities ){
-                if ($verbose) {
-                        # print" Checking for zero visits at $_ ( $cities{$_} )\n";
-                }
                 if ( "$cities{$_}" eq "0" ) {
-                        if ($verbose) {
-                        #       print " Looks like $_ has 0 - Pruning $_\n";
-                        }
                         delete $cities{$_};
                 } else {
                         if ($verbose){
@@ -457,7 +424,6 @@ sub updateDist{
         }
 
 }
-
 
 sub dumpKML{
         my $numofpoints = @placemarks;
@@ -475,7 +441,7 @@ sub dumpKML{
         my %heightOfCity=();
         my %cityPct=();
 
-        if ($verbose) {
+        if ($debug) {
                 print "- Calculating Ingress Bars \n";
         }
 
@@ -655,14 +621,14 @@ sub dumpKML{
 
 
         foreach ( keys %cities) {
-                if ($verbose) {
+                if ($debug) {
                         print "B - Plotting $_ with hight of $heightOfCity{$_} \n";
                 }
 
                 my $style="transBluePoly";
 
                 if ( $_ =~ m/Unknown/ ) {
-                        if ($verbose) {
+                        if ($debug) {
                                 print "B - This is unknownVille - Using alt style\n";
                         }
                         $style="transGreenPoly";
@@ -738,6 +704,8 @@ sub dumpKML{
                 my $dstlatitude = $_->[6];
                 my $url = $_->[8];
 		my $msg = $_->[9];
+		my $timestamp = $_->[10];
+
 		# Generate summary data
 
 		unless ( $summary{$msg} ) {
@@ -754,7 +722,7 @@ sub dumpKML{
 		
 		if ($plotnum == $numofpoints) {
 		
-			if ($verbose) {
+			if ($debug) {
 				print "------Last Event----\n";
 			}
 			$last=1;
@@ -814,7 +782,7 @@ sub dumpKML{
                 my $sensorlatitude = $_->[1];
                 my $name = $_->[2];
 
-                if ($verbose) {
+                if ($debug) {
                         print "- Plotting Snort Sensor in $name \n";
                 }
 
@@ -869,7 +837,7 @@ sub get_latest_file($) {
 sub wlog(){
 	# This is designed to be run as a daemon, so lets send any output somewhere
 	my $logmsg=shift;
-	if ($verbose){
+	if ($debug){
 		print "Logging: $logmsg\n";
 	}
 	system("logger -t SnortGoogleEarth \"$logmsg\"");	
@@ -884,6 +852,7 @@ sub processevent {
 	my $style=shift;
 	my $shortmsg=shift;
 	my $longmsg=shift;
+	my $timestamp=shift;
  	my $dstcountry_code3=0;
 	my $dstcountry_name=0;
 	my $dstlatitude=0;
@@ -895,17 +864,37 @@ sub processevent {
 	my $srclongitude=0;
 	my $srccity=0;
 
-	if ($verbose) {
+	if ($lastwindow) {
+		update_time_window;	# Update our "start time" for a sliding window on each event
+	}
+	
+	if ($debug) {
 		print "ProcessEvent: 
 		src_addr= $src_addr
 		dst_addr= $dst_addr
 		style= $style
 		shortmsg= $shortmsg	
-		longmsg= $longmsg\n";
-	} else {
-		print "Processing Record [$recnum] \r";
+		longmsg= $longmsg
+		timestamp=$timestamp \n";
 	}
+		#  Don't process older records than the "start time"
+		if ( $timestamp lt $starttime ) {
+			if ($verbose) {
+				print "Skipping record - Timestamp $timestamp (" . localtime($timestamp) . ") is less than the start time of $starttime (" . localtime($starttime) . ")\n";
+			}
+			print "Processing Record [$recnum] S\r";
+			return;
+		}
 
+		# and quit if we get an older record than "End time"
+		if ( $timestamp ge $endtime) {
+			if ($debug) {
+				print "\nEnd. Timestamo $timestamp " . localtime($timestamp) . " is ge than end time $endtime (" . localtime($endtime) . "). End \n";
+			}
+			die "End time hit";
+		}		
+
+	print "Processing Record [$recnum] P\r";
 	# Find Destination 
 	my $gi = Geo::IP::PurePerl->new("/usr/local/share/GeoIP/GeoLiteCity.dat",GEOIP_STANDARD);
         if ((my $country_code,
@@ -919,11 +908,11 @@ sub processevent {
 		my $dma_code,
 		my $area_code) = $gi->get_city_record($dst_addr)) {
 
-		if ($verbose) {
+		if ($debug) {
                 	print "- DestIP $dst_addr location found in $dstcity, $dstcountry_name\n";
                	}
 	} else {
-        	if ($verbose) {
+        	if ($debug) {
 			print "- DestIP $dst_addr location unknown. Defaulting to $defaultlongitude, $defaultlatitude\n";
                  }
                  $dstlongitude=$defaultlongitude;
@@ -944,11 +933,11 @@ sub processevent {
               	my $srcdma_code,
                	my $srcarea_code) = $gi->get_city_record($src_addr)) {
 
-      		if ($verbose) {
+      		if ($debug) {
                       	print "- SrcIP $src_addr location found in $srccity, $srccountry_name\n";
                	}
        	} else {
-               	if ($verbose) {
+               	if ($debug) {
                       	print "- SrcIP $src_addr location unknown, defaulting to  $defaultlongitude, $defaultlatitude\n";
               	}
                	$srclongitude=$defaultlongitude;
@@ -959,7 +948,7 @@ sub processevent {
 
 	if ($skipunknown) {
 		if ($verbose) {
-			print "- Unknown location -> Unknown location - Skipping to next event, no idea where to plot this RFC 1918?\n";
+			print "- Skipping Event! -> Unknown location, no idea where to plot this RFC 1918?\n";
 		}
 		if (("$srccountry_name" eq "UnknownCountry") and ("$dstcountry_name" eq "UnknownCountry")) {
 			return;
@@ -975,25 +964,26 @@ sub processevent {
                            "$dstlatitude",
                            "$srccity",
                            "url",
-			   "$shortmsg"]);
+			   "$shortmsg",
+			   "$timestamp"]);
 
 	# Update event distribution for the city of $src_addr   
-	if ($verbose) {
+	if ($debug) {
 		print "* updating dists\n";
 	}
 
         if ($srccity) {
-        	if ($verbose){
+        	if ($debug){
 			print "- Got city  \n";
                 }
          } else {
-                if ($verbose){
+                if ($debug){
 			print "- Dont know city, so creating a generic entry\n";
 		}
 		$srccity="Unknown$srccountry_code3";
 	}
 
-	if ($verbose) {
+	if ($debug) {
 		print "- City is $srccity\n";
 	}
 
@@ -1009,8 +999,19 @@ sub processevent {
                 }
         }
 
+	# Remove events from the array that have a timestamp older than the start of our "last window"
+	foreach (@placemarks) {
+		my $placemarkTimestamp=$_->[10];
+		#if ( $placemarkTimestamp le $starttime ) {
+			if ($debug) {
+				print "Found an old event with time of " . localtime($placemarkTimestamp) . 
+				" - Window starts at " . localtime($starttime) . "\n";
+			}	
+		#}
+	}
 
-	if ($updatecount >= $config{'updateinterval'}) {
+
+	if ($updatecount >= $config{'updateinterval'}) {	# TODO Add "or last window cull"
 		if ($verbose) {
 			print "* Got another $updatecount events, time to update KML file for the $numOfUpdates time\n";
 		}
@@ -1018,12 +1019,11 @@ sub processevent {
 		$numOfUpdates++;
 		$updatecount=0;
 	} else {
-		if ($verbose) {
+		if ($debug) {
 			print "- Not updating KML: Event threshold not reached:  Records = $updatecount / $config{'updateinterval'}\n"; 
 		}
 	}
 }
-
 
 
 sub unified_read() {
@@ -1033,7 +1033,7 @@ sub unified_read() {
 
 	if ($lastrec >= $recnum) {
 		if ($verbose) {
-			print "Skipping record $recnum \n";
+			print "- Skipping record $recnum, it's less than the waldo value of $lastrec\n";
 		}
 	} else {
 		if ($verbose){
@@ -1061,8 +1061,10 @@ sub unified_read() {
 		my $classtype = get_class($class,$record->{'class'});
 		my $gid = $record->{'sig_gen'};
 		my $timestamp = $record->{'tv_sec'};
-		$timestamp = localtime("$timestamp");
-		my $longmsg = "$timestamp <h3>SID: $sid </br> $msg </h3>$src_addr:$src_port $dst_addr:$dst_port";
+	
+
+		#$timestamp = localtime("$timestamp");
+		my $longmsg = localtime("$timestamp") . " <h3>SID: $sid </br> $msg </h3>$src_addr:$src_port $dst_addr:$dst_port";
 
 		if ($stop) {
                 	print "Stop by request. Process and get another?";
@@ -1072,11 +1074,11 @@ sub unified_read() {
 		unless ( (grep {$_ eq $src_addr} @ignoresource) or 
 			 (grep {$_ eq $sid} @ignoresids)) {
 
-			processevent("$src_addr", "$dst_addr", "Attack", "$shortmsg", "$longmsg");
+			processevent("$src_addr", "$dst_addr", "Attack", "$shortmsg", "$longmsg","$timestamp");
 
 		} else {
 			if ($verbose) { 
-				print "- Ignoring record sid $sid with source IP of $src_addr\n"; 
+				print "- Ignoring record sid $sid with source IP of $src_addr as requested in config\n"; 
 			}
 		}
 
@@ -1094,7 +1096,7 @@ sub unified_read() {
 	
 	}
      } else {
-	if ($verbose) {
+	if ($debug) {
 		print "Unsuported record type $UF_Data->{'TYPE'}\n";
 	}
      }
@@ -1110,6 +1112,11 @@ if ($parent) {
 }
 foreach(@sensors) {
 	lookupSensors($_);	
+}
+
+# Calculate initial time offset if --last is used
+if ($lastwindow) { 
+	update_time_window;
 }
 
 if ("$config{'mode'}" eq "unified") {
@@ -1288,7 +1295,7 @@ if ("$config{'mode'}" eq "unified") {
 			my $shortmsg="$msg";
 			my $longmsg="$timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Priority $priority : Impact $flag\n";
 
-			processevent("$src_addr","$dst_addr","$flag","$shortmsg","$longmsg");
+			processevent("$src_addr","$dst_addr","$flag","$shortmsg","$longmsg","$timestamp");
 
         	} elsif ( $event{'rec_type'} == $SFStreamer::RECORD_RULE ) {
                 	$rule_map{$event{'generator_id'}.":".$event{'rule_id'}} = $event{'msg'};
@@ -1303,14 +1310,14 @@ if ("$config{'mode'}" eq "unified") {
 
 	while (my $line=<CSVFILE>) {
 		unless ($line =~ m/^[#\s]/) { # Skip comments 
-			if ($verbose) {
+			if ($debug) {
 				print "Log line is : $line\n";
 			}
 			(my $src_addr, my $dst_addr,  my $short_msg, my $long_msg) = split(/,/, $line);
-			if ($verbose) {
+			if ($debug) {
 				print "Entry Details :\n\t\tsrc_addr = $src_addr \n\t\tdst_addr = $dst_addr \n\t\tshort = $short_msg \n\t\tlong = $long_msg\n";
 			}
-			processevent("$src_addr", "$dst_addr", "Attack", "$short_msg", "$long_msg");
+			processevent("$src_addr", "$dst_addr", "Attack", "$short_msg", "$long_msg","0");
 		}
 	}
 	print "KML file $outputFile created.\n";
