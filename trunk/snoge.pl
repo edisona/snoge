@@ -213,7 +213,7 @@ if ("$config{'mode'}" eq "unified" ) {
 	require SFStreamer ; SFStreamer->import(qw(:DEFAULT));
 	require SFSGlobals ; SFSGlobals->import(qw(:DEFAULT)); 
 	print "Connecting to DC $config{'dc'}\n";
-	print $FLAG_METADATA::SFStreamer;
+	#print $FLAG_METADATA::SFStreamer;
 	unless (-f $config{'certfile'}) {
 		die "Unable to find SSL cert $config{'certfile'}";
 	}
