@@ -50,8 +50,8 @@ my $endtime=1586439068; 	# Looks like SnoGE will break in April 2020 :-P . This 
 my $starttime=0;
 no warnings 'once';	
 
-my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$skipunknown,$parent,$configFile,$lastwindow,$debug,$lastupdatetime);
-
+my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$skipunknown,$parent,$configFile,$lastwindow,$debug);
+my $lastupdatetime=0;
 
 GetOptions (    'c|config=s' => \$configFile,
                 'o|onefile=s' => \$oneFile,
@@ -963,9 +963,10 @@ sub processevent {
 		}
 	}
 
-	if (( "$srccountry_name" eq "UnknownCountry" ) and ( "$dstcountry_name" ne "UnknownCountry")) {
-		print "Swapping direction for better plot of $shortmsg $srccountry_name -> $dstcountry_name\n";
-	}
+	# This is already handeled by design. I forgot that for a while :P
+	#if (( "$srccountry_name" eq "UnknownCountry" ) and ( "$dstcountry_name" ne "UnknownCountry")) {
+	#	print "Swapping direction for better plot of $shortmsg $srccountry_name -> $dstcountry_name\n";
+	#}
 
        	push(@placemarks, ["$srclongitude",
                            "$srclatitude",
@@ -1319,8 +1320,15 @@ if ("$config{'mode'}" eq "unified") {
 
 			my $shortmsg="$msg";
 			my $longmsg="$timestamp $gid:$sid - $msg $src_addr -> $dst_addr : Priority $priority : Impact $flag\n";
-
-			processevent("$src_addr","$dst_addr","$flag","$shortmsg","$longmsg","$timestamp");
+			$recnum++;	
+			unless ( (grep {$_ eq $src_addr} @ignoresource) or (grep {$_ eq $sid} @ignoresids)) {
+				processevent("$src_addr","$dst_addr","$flag","$shortmsg","$longmsg","$timestamp");
+                	} else {
+				print "Processing Record [$recnum] S\r";
+                        	if ($verbose) { 
+                                	print "- Ignoring record sid $sid with source IP of $src_addr as requested in config\n"; 
+                        	}
+                	}
 
         	} elsif ( $event{'rec_type'} == $SFStreamer::RECORD_RULE ) {
                 	$rule_map{$event{'generator_id'}.":".$event{'rule_id'}} = $event{'msg'};
