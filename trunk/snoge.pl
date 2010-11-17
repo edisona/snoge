@@ -109,6 +109,10 @@ $config{'classification'}="./clasification.config";
 open my $config, '<', $configFile or die "Unable to open config file $configFile $!";
     while(<$config>) {
         chomp; 
+
+	# Quick hack to remove confusion regarding " chars in old config files
+	$_ =~ s/"//g;
+
 	if ( $_ =~ m/^[a-zA-Z]/) {
        		(my $key, my @value) = split /=/, $_;
        		$config{$key} = join '=', @value;
