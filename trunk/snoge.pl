@@ -56,7 +56,7 @@ my $lastupdatetime=0;
 GetOptions (    'c|config=s' => \$configFile,
                 'o|onefile=s' => \$oneFile,
                 'p|parent=s' => \$parent, 
-                's|skipunknown=s' => \$skipunknown,
+                's|skipunknown' => \$skipunknown,
                 'w|write=s' => \$outputFile,
                 'z|pause' => \$pause,
 		'v|verbose' => \$verbose,
@@ -105,6 +105,8 @@ $config{'banner'}="snort-ge-banner.png";
 $config{'updateurl'}="http://localhost/snoge/snoge.kml";
 $config{'sensors'}="rm-rf.co.uk sourcefire.com";
 $config{'classification'}="./clasification.config";
+$config{'bartext'}="of security events are inbound from";
+$config{'statsonly'}=0;	# only update stats
 
 open my $config, '<', $configFile or die "Unable to open config file $configFile $!";
     while(<$config>) {
@@ -651,7 +653,7 @@ sub dumpKML{
                 print $KML_FILE "
                 <Placemark>
                         <name>$_</name>
-                        <description>$shortpct% of current security events are inbound from $_</description>
+                        <description>$shortpct% $config{'bartext'} $_</description>
                         <LookAt>
                                 <longitude>$cityLongitude{$_}</longitude>
                                 <latitude>$cityLatitude{$_}</latitude>
@@ -959,10 +961,8 @@ sub processevent {
         }
 
 	if ($skipunknown) {
-		if ($verbose) {
-			print "- Skipping Event! -> Unknown location, no idea where to plot this RFC 1918?\n";
-		}
 		if (("$srccountry_name" eq "UnknownCountry") and ("$dstcountry_name" eq "UnknownCountry")) {
+			print "- Skipping Event! -> Unknown location, no idea where to plot this RFC 1918?\n" if $verbose;
 			return;
 		}
 	}
@@ -971,7 +971,6 @@ sub processevent {
 	#if (( "$srccountry_name" eq "UnknownCountry" ) and ( "$dstcountry_name" ne "UnknownCountry")) {
 	#	print "Swapping direction for better plot of $shortmsg $srccountry_name -> $dstcountry_name\n";
 	#}
-
        	push(@placemarks, ["$srclongitude",
                            "$srclatitude",
                            "$shortmsg - $srccity, $srccountry_name",
@@ -1012,14 +1011,20 @@ sub processevent {
                 }
         }
 
-	# Remove events from the array that have a timestamp older than the start of our "last window"
 	#
 	foreach (@placemarks) {
 		my $placemarkTimestamp=$_->[10];
-		if ( $placemarkTimestamp le $starttime ) {
+		# Remove events from the array that have a timestamp older than the start of our "last window"
+		if ( $placemarkTimestamp lt $starttime ) {
 			if ($verbose) {
 				print "Removing a time-stale event with timestamp of " . localtime($placemarkTimestamp) . 
 				" - Window starts at " . localtime($starttime) . "\n";
+			}
+			shift @placemarks;	
+		}
+		if ( $config{'statsonly'} ) {
+			if ($verbose) {
+				print "Removing placemark, statsonly is enabled\n";  
 			}
 			shift @placemarks;	
 		}
@@ -1355,6 +1360,11 @@ if ("$config{'mode'}" eq "unified") {
 				print "Entry Details :\n\t\tsrc_addr = $src_addr \n\t\tdst_addr = $dst_addr \n\t\tshort = $short_msg \n\t\tlong = $long_msg\n";
 			}
 			processevent("$src_addr", "$dst_addr", "Attack", "$short_msg", "$long_msg","0");
+			if ($pause) { 
+				print "Sleeping...\n";
+				my $asdf =<STDIN>;
+			}
+
 		}
 	}
 	print "KML file $outputFile created.\n";
