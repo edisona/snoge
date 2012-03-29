@@ -107,6 +107,11 @@ $config{'sensors'}="rm-rf.co.uk sourcefire.com";
 $config{'classification'}="./clasification.config";
 $config{'bartext'}="of security events are inbound from";
 $config{'statsonly'}=0;	# only update stats
+$config{'instancetext'} = "IPS Instance";
+$config{'instancesubtext'} = "IPS Insatnce";
+$config{'summarytext'} = "Sourcefire Office Location";
+$config{'aggregatestats'} = 0; # addregate all stats into a country number. Turns unknown into a separate aggregrate rating
+
 
 open my $config, '<', $configFile or die "Unable to open config file $configFile $!";
     while(<$config>) {
@@ -173,9 +178,11 @@ my $lastrec=0;
 my @sensorPlacemarks=();
 my @placemarks=();
 my %cities = ();
+my %countries = ();
 my %cityLongitude = ();
 my %cityLatitude = ();
 my @citiestracked =();
+my @countriestracked =();
 my $recnum=0;
 my $updatecount=0;
 my $numOfUpdates=0;
@@ -437,6 +444,66 @@ sub updateDist{
         }
 
 }
+
+
+sub updateCountries{
+        my $city=shift;
+        my $longitude=shift;
+        my $latitude=shift;
+
+        if ($debug){
+                print "- Updating Dist for $city\n";
+        }
+
+        if (exists $countries{$city}) {
+                my $visits = $countries{$city};
+                $visits++;
+                $countries{$city} = $visits;
+                if ($debug){
+                        print "- $visits events are now in cache for $city\n";
+                }
+        } else {
+                if ($debug) {
+                        print " - First event from $city\n";
+                }
+                $countries{$city} = "1";
+                $cityLongitude{$city} = $longitude;
+                $cityLatitude{$city} = $latitude;
+        }
+
+        push(@countriestracked,$city);
+
+        # Only keep track of the last maxstats events
+        if ( @countriestracked >= $config{'maxstats'} ){
+                my $rmcity=shift @countriestracked;
+                if ($debug) {
+			print " * countries -------------------------------\n";
+                        print " * Hit max event count of $config{'maxstats'}\n";
+                        print " - Oldest stat is from $rmcity - $countries{$rmcity} visits\n";
+                        print " - rmcity is  $rmcity - $countries{$rmcity} visits\n";
+                        print " - city is  $city - $countries{$city} visits\n";
+                }
+                my $visits=$countries{$rmcity};
+                $visits--;
+                $countries{$rmcity} = $visits;
+                if ($debug) {
+                        print "$rmcity, now has $countries{$rmcity} visits\n";
+                }
+        }
+
+        # Prune countries with "0" visits
+        foreach( keys %countries ){
+                if ( "$countries{$_}" eq "0" ) {
+                        delete $countries{$_};
+                }
+        }
+
+}
+
+
+
+
+
 
 sub dumpKML{
         my $numofpoints = @placemarks;
@@ -801,7 +868,7 @@ sub dumpKML{
 
                 print $KML_FILE "
                 <Placemark>
-                        <name>Snort Instance $name</name>
+                        <name>$config{'instancetext'}</name>
                         <visibility>1</visibility>
                         <styleUrl>#snort</styleUrl>
                 <!-- <LookAt>
@@ -819,8 +886,14 @@ sub dumpKML{
                         <description>
                         <![CDATA[ 
                         <table width=\"400\"/></table> 
-                        Snort instance - $name</br>
-			$summaryText<br>
+                        $config{'instancesubtext'} </br> \n";
+			
+			if ($summaryText) {
+				print $KML_FILE " $summaryText<br>\n";
+			} else {
+				print $KML_FILE " $config{'summarytext'} <br>\n";
+			}
+			print $KML_FILE "	
                         ]]> 
                         </description>
                 </Placemark>\n";
@@ -893,22 +966,19 @@ sub processevent {
 	}
 		#  Don't process older records than the "start time"
 		if ( $timestamp lt $starttime ) {
-			if ($verbose) {
-				print "Skipping record - Timestamp $timestamp (" . localtime($timestamp) . ") is less than the start time of $starttime (" . localtime($starttime) . ")\n";
-			}
-			print "Processing Record [$recnum] S\r";
+			print "Skipping record - Timestamp $timestamp (" . localtime($timestamp) . ") is less than the start time of $starttime (" . localtime($starttime) . ")\n" if $verbose;
+			print "Processing Record [$recnum] S\r" if $verbose;
 			return;
 		}
 
 		# and quit if we get an older record than "End time"
 		if ( $timestamp ge $endtime ) {
-			if ($debug) {
-				print "\nEnd. Timestamp $timestamp " . localtime($timestamp) . " is ge than end time $endtime (" . localtime($endtime) . "). End \n";
-			}
+			print "\nEnd. Timestamp $timestamp " . localtime($timestamp) . " is ge than end time $endtime (" . localtime($endtime) . "). End \n" if $debug;
 			die "End time hit";
 		}		
 
 	print "Processing Record [$recnum] P\r";
+	
 	# Find Destination 
 	my $gi = Geo::IP::PurePerl->new("/usr/local/share/GeoIP/GeoLiteCity.dat",GEOIP_STANDARD);
         if ((my $country_code,
@@ -999,7 +1069,12 @@ sub processevent {
 		print "- City is $srccity\n";
 	}
 
-	&updateDist("$srccity","$srclongitude","$srclatitude");
+	#unless ($srccity =~ "Unknown") {
+		&updateDist("$srccity","$srclongitude","$srclatitude");
+	#}
+	
+	
+	&updateCountries("$srccity","$srclongitude","$srclatitude");
 
         # Limit the number of placemarks we display to a number
         my $numofpoints = @placemarks;
@@ -1351,15 +1426,15 @@ if ("$config{'mode'}" eq "unified") {
 	print "Processing CSV file $oneFile...\n";
 
 	while (my $line=<CSVFILE>) {
+		
 		unless ($line =~ m/^[#\s]/) { # Skip comments 
-			if ($debug) {
-				print "Log line is : $line\n";
-			}
+			$recnum++;
+			print "Log line is : $line\n" if $debug;
 			(my $src_addr, my $dst_addr,  my $short_msg, my $long_msg) = split(/,/, $line);
-			if ($debug) {
-				print "Entry Details :\n\t\tsrc_addr = $src_addr \n\t\tdst_addr = $dst_addr \n\t\tshort = $short_msg \n\t\tlong = $long_msg\n";
-			}
+			print "Entry Details :\n\t\tsrc_addr = $src_addr \n\t\tdst_addr = $dst_addr \n\t\tshort = $short_msg \n\t\tlong = $long_msg\n" if $debug;
+			
 			processevent("$src_addr", "$dst_addr", "Attack", "$short_msg", "$long_msg","0");
+			
 			if ($pause) { 
 				print "Sleeping...\n";
 				my $asdf =<STDIN>;
