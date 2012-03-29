@@ -55,7 +55,7 @@ my $lastupdatetime=0;
 
 GetOptions (    'c|config=s' => \$configFile,
                 'o|onefile=s' => \$oneFile,
-                'p|parent=s' => \$parent, 
+                'p|parent|server=s' => \$parent,
                 's|skipunknown' => \$skipunknown,
                 'w|write=s' => \$outputFile,
                 'z|pause' => \$pause,
@@ -65,8 +65,6 @@ GetOptions (    'c|config=s' => \$configFile,
 		'j|starttime=s' => \$starttime,
 		'k|endtime=s'  => \$endtime,
                 );
-
-
 
 unless ($configFile) {
 	print "ERROR: I need a config file. Take a look at usage\n";
