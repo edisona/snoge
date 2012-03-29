@@ -50,13 +50,13 @@ my $endtime=1586439068; 	# Looks like SnoGE will break in April 2020 :-P . This 
 my $starttime=0;
 no warnings 'once';	
 
-my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$skipunknown,$parent,$configFile,$lastwindow,$debug);
+my (%config,$defaultlongitude,$defaultlatitude,$outputFile,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$parent,$configFile,$lastwindow,$debug);
 my $lastupdatetime=0;
 
 GetOptions (    'c|config=s' => \$configFile,
                 'o|onefile=s' => \$oneFile,
                 'p|parent|server=s' => \$parent,
-                's|skipunknown' => \$skipunknown,
+                's|skip-unknown-city' => \$config{'skipunknowncity'},
                 'w|write=s' => \$outputFile,
                 'z|pause' => \$pause,
 		'v|verbose' => \$verbose,
@@ -79,6 +79,9 @@ if ($debug) {
 
 # Default values for configuration. These are all set in the config file. Don't change them here.
 
+$config{'skipunknowncity'} = 0;
+$config{'skipunknownycountry'} = 0;
+
 $config{'sid-msg'}="sid-msg.map";
 $config{'mode'}="csv";
 $config{'gen-msg'}="./gen-msg.map";
@@ -100,7 +103,8 @@ $config{'waldo'}="/dev/null";
 $config{'eventicon'}="warning.png";
 $config{'sensoricon'}="snorty.gif";
 $config{'banner'}="snort-ge-banner.png";
-$config{'updateurl'}="http://localhost/snoge/snoge.kml";
+$config{'updateurls'}="http://localhost/snoge/snoge.kml";
+$config{'imageurl'}="http://localhost/snoge/";
 $config{'sensors'}="rm-rf.co.uk sourcefire.com";
 $config{'classification'}="./clasification.config";
 $config{'bartext'}="of security events are inbound from";
@@ -109,6 +113,9 @@ $config{'instancetext'} = "IPS Instance";
 $config{'instancesubtext'} = "IPS Insatnce";
 $config{'summarytext'} = "Sourcefire Office Location";
 $config{'aggregatestats'} = 0; # addregate all stats into a country number. Turns unknown into a separate aggregrate rating
+$config{'offset'} = 0;  # Location offset for multi bars
+$config{'foldername'} = "Snort IPS Events";
+$config{'resolution'} = "country";	# country or city
 
 
 open my $config, '<', $configFile or die "Unable to open config file $configFile $!";
@@ -145,13 +152,15 @@ if ($debug) {
 	print "CONFIG: Event Icon           : $config{'eventicon'} \n";
 	print "CONFIG: Sensor Icon          : $config{'sensoricon'} \n";
 	print "CONFIG: Banner               : $config{'banner'} \n";
-	print "CONFIG: UpdateURL            : $config{'updateurl'} \n";
+	print "CONFIG: UpdateURLs            : $config{'updateurls'} \n";
 	print "CONFIG: Defense Center       : $config{'dc'} \n";
 	print "CONFIG: Estreamer Port       : $config{'port'}\n";
 	print "CONFIG: Certfile             : $config{'certfile'}\n";
 	print "CONFIG: Sensors              : $config{'sensors'}\n";
 	print "CONFIG: Image URL            : $config{'imageurl'}\n";
 	print "CONFIG: classification file  : $config{'classification'}\n";
+	print "CONFIG: SkipUnknownCity      : $config{'skipunknowncity'}\n";
+	print "CONFIG: SkipUnknownCountry   : $config{'skipunknowncity'}\n";
 
 }
 
@@ -176,11 +185,9 @@ my $lastrec=0;
 my @sensorPlacemarks=();
 my @placemarks=();
 my %cities = ();
-my %countries = ();
 my %cityLongitude = ();
 my %cityLatitude = ();
 my @citiestracked =();
-my @countriestracked =();
 my $recnum=0;
 my $updatecount=0;
 my $numOfUpdates=0;
@@ -192,63 +199,63 @@ my $socket=0;
 # use is evaluated at compile time, so we cant "use" it in this context.
 # require foo; foo->import(qw(:Stuff);
 # should work for us instead
-
-if ("$config{'mode'}" eq "unified" ) {
-	print "- Unified mode * Importing functions:\n";
-	require SnortUnified ; 
-	SnortUnified->import(qw(:ALL));
-	require SnortUnified::MetaData;
-	SnortUnified::MetaData->import(qw(:ALL));
-	require SnortUnified::TextOutput;
-	SnortUnified::TextOutput->import(qw(:ALL));
-
-	unless ( -f $config{'sid-msg'} ) {
-		die ( "Unable to open $config{'sid-msg'} for sid-msg map" ); 
-	}
-
-	unless ( -f $config{'gen-msg'} ) {
-		die ( "Unable to open $config{'gen-msg'} for generator map" ); 
-	}
-
-	unless ( -f $config{'classification'} ) {
-		die ( "Unable to open $config{'classification'} for a classification map" ); 
-	}
-
-	$sids = get_snort_sids("$config{'sid-msg'}","$config{'gen-msg'}");
-	$class = get_snort_classifications("$config{'classification'}");
-} elsif ("$config{'mode'}" eq "estreamer") {
-	print "Estreamer Mode - Importing functions\n";
-	require IO::Socket::SSL; IO::Socket::SSL->import();
-	require SFStreamer ; 
-	SFStreamer->import(qw(:DEFAULT));
-	require SFStreamer ; SFStreamer->import(qw(:DEFAULT));
-	require SFSGlobals ; SFSGlobals->import(qw(:DEFAULT)); 
-	print "Connecting to DC $config{'dc'}\n";
-	#print $FLAG_METADATA::SFStreamer;
-	unless (-f $config{'certfile'}) {
-		die "Unable to find SSL cert $config{'certfile'}";
-	}
-	if ( $socket= new IO::Socket::SSL(PeerAddr => "$config{'dc'}",
-                                PeerPort => "$config{'port'}",
-                                Proto => 'tcp', 
-                                SSL_use_cert => 1,
-                                SSL_cert_file => "$config{'certfile'}",
-                                SSL_key_file => "$config{'certfile'}") ) {
-		print "Connected to DC $config{'dc'} on $config{'port'}\n"
+unless ($parent) {
+	if ("$config{'mode'}" eq "unified" ) {
+		print "- Unified mode * Importing functions:\n";
+		require SnortUnified ; 
+		SnortUnified->import(qw(:ALL));
+		require SnortUnified::MetaData;
+		SnortUnified::MetaData->import(qw(:ALL));
+		require SnortUnified::TextOutput;
+		SnortUnified::TextOutput->import(qw(:ALL));
+	
+		unless ( -f $config{'sid-msg'} ) {
+			die ( "Unable to open $config{'sid-msg'} for sid-msg map" ); 
+		}
+	
+		unless ( -f $config{'gen-msg'} ) {
+			die ( "Unable to open $config{'gen-msg'} for generator map" ); 
+		}
+	
+		unless ( -f $config{'classification'} ) {
+			die ( "Unable to open $config{'classification'} for a classification map" ); 
+		}
+	
+		$sids = get_snort_sids("$config{'sid-msg'}","$config{'gen-msg'}");
+		$class = get_snort_classifications("$config{'classification'}");
+	} elsif ("$config{'mode'}" eq "estreamer") {
+		print "Estreamer Mode - Importing functions\n";
+		require IO::Socket::SSL; IO::Socket::SSL->import();
+		require SFStreamer ; 
+		SFStreamer->import(qw(:DEFAULT));
+		require SFStreamer ; SFStreamer->import(qw(:DEFAULT));
+		require SFSGlobals ; SFSGlobals->import(qw(:DEFAULT)); 
+		print "Connecting to DC $config{'dc'}\n";
+		#print $FLAG_METADATA::SFStreamer;
+		unless (-f $config{'certfile'}) {
+			die "Unable to find SSL cert $config{'certfile'}";
+		}
+		if ( $socket= new IO::Socket::SSL(PeerAddr => "$config{'dc'}",
+					PeerPort => "$config{'port'}",
+					Proto => 'tcp', 
+					SSL_use_cert => 1,
+					SSL_cert_file => "$config{'certfile'}",
+					SSL_key_file => "$config{'certfile'}") ) {
+			print "Connected to DC $config{'dc'} on $config{'port'}\n"
+		} else {
+			die("Unable to connect to $config{'dc'} on $config{'port'}");
+		}
+	
+	} elsif ( $config{'mode'} eq "csv") {
+		unless ($oneFile) {
+			die "CSV mode requires a filename, use --onefile to set filename";
+		}
+		print "CSV File mode (processing $oneFile)\n";
+		open (CSVFILE,"$oneFile") or die "Unable to open CSV file $oneFile";
 	} else {
-		die("Unable to connect to $config{'dc'} on $config{'port'}");
+		die "Unknown mode.";
 	}
-
-} elsif ( $config{'mode'} eq "csv") {
-	unless ($oneFile) {
-		die "CSV mode requires a filename, use --onefile to set filename";
-	}
-	print "CSV File mode (processing $oneFile)\n";
-	open (CSVFILE,"$oneFile") or die "Unable to open CSV file $oneFile";
-} else {
-	die "Unknown mode.";
 }
-
 
 # ------------- Functions ----------------
 
@@ -345,16 +352,18 @@ sub parentKML{
 	print "Creating a parent KML to serve event updates 
 	- Filename: $parent
 	- Update interval: $config{'refreshsecs'}
-	- UpdateURL: $config{'updateurl'}
+	- UpdateURLs: $config{'updateurls'}
 	- ImageURL: $config{'imageurl'}
 	- Banner: $config{'banner'} \n";
+	
+	my @netlinks = split(/,/, $config{'updateurls'});
 	
 	open SERVERKML, ">", "$parent" or die "Unable to open $parent for writing";
 	print SERVERKML "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 	<kml xmlns=\"http://earth.google.com/kml/2.0\">
 	<Folder>
         	<open>1</open>
-        	<name>Snort IPS Events</name>
+        	<name>$config{'foldername'}</name>
         	<ScreenOverlay>
                 	<name>Banner</name>
                 	<Icon>
@@ -364,25 +373,32 @@ sub parentKML{
                 	<screenXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>
                 	<rotationXY x=\"0\" y=\"0\" xunits=\"fraction\" yunits=\"fraction\"/>
                 	<size x=\"0\" y=\"0\" xunits=\"fraction\" yunits=\"fraction\"/>
-        	</ScreenOverlay>
-        	<NetworkLink>
-                	 <name>Snort Events</name>
-                	<visibility>1</visibility>
-                	<!--<flyToView>1</flyToView>-->
-                	<Url>
-                        	<href>$config{'updateurl'}</href>
-			";
-	if ($config{'refreshsecs'}) {
-		print SERVERKML " <refreshMode>onInterval</refreshMode>
-				  <refreshInterval>$config{'refreshsecs'}</refreshInterval> \n"
-	}
-	print SERVERKML "
-                	</Url>
-                	<refreshVisibility>1</refreshVisibility>
-        	</NetworkLink>
+        	</ScreenOverlay>" . "\n";
+		
+		foreach (@netlinks) {
+			print "        - Adding network link $_\n";
+			print SERVERKML "		
+			<NetworkLink>
+				 <name>Data</name>
+				<visibility>1</visibility>
+				<!--<flyToView>1</flyToView>-->
+				<Url>
+					<href>$_</href>
+				";
+				if ($config{'refreshsecs'}) {
+					print SERVERKML " <refreshMode>onInterval</refreshMode>
+					  <refreshInterval>$config{'refreshsecs'}</refreshInterval> \n"
+				}
+				print SERVERKML "
+				</Url>
+				<refreshVisibility>1</refreshVisibility>
+			</NetworkLink>\n";
+		}
+		
+		print SERVERKML "
 		</Folder>
 	</kml>
-	"
+	";
 }
 
 
@@ -444,65 +460,6 @@ sub updateDist{
 }
 
 
-sub updateCountries{
-        my $city=shift;
-        my $longitude=shift;
-        my $latitude=shift;
-
-        if ($debug){
-                print "- Updating Dist for $city\n";
-        }
-
-        if (exists $countries{$city}) {
-                my $visits = $countries{$city};
-                $visits++;
-                $countries{$city} = $visits;
-                if ($debug){
-                        print "- $visits events are now in cache for $city\n";
-                }
-        } else {
-                if ($debug) {
-                        print " - First event from $city\n";
-                }
-                $countries{$city} = "1";
-                $cityLongitude{$city} = $longitude;
-                $cityLatitude{$city} = $latitude;
-        }
-
-        push(@countriestracked,$city);
-
-        # Only keep track of the last maxstats events
-        if ( @countriestracked >= $config{'maxstats'} ){
-                my $rmcity=shift @countriestracked;
-                if ($debug) {
-			print " * countries -------------------------------\n";
-                        print " * Hit max event count of $config{'maxstats'}\n";
-                        print " - Oldest stat is from $rmcity - $countries{$rmcity} visits\n";
-                        print " - rmcity is  $rmcity - $countries{$rmcity} visits\n";
-                        print " - city is  $city - $countries{$city} visits\n";
-                }
-                my $visits=$countries{$rmcity};
-                $visits--;
-                $countries{$rmcity} = $visits;
-                if ($debug) {
-                        print "$rmcity, now has $countries{$rmcity} visits\n";
-                }
-        }
-
-        # Prune countries with "0" visits
-        foreach( keys %countries ){
-                if ( "$countries{$_}" eq "0" ) {
-                        delete $countries{$_};
-                }
-        }
-
-}
-
-
-
-
-
-
 sub dumpKML{
         my $numofpoints = @placemarks;
         my $eventcount=0;
@@ -511,7 +468,8 @@ sub dumpKML{
 
         if ($verbose) {
                 print "- Creating a KML file : $outputFile\n";
-        }
+		print "- Dressing to the $config{'offset'}\n" 	if $config{'offset'};
+	}
 
         # Dump the attack distribution data into a GE KML
         my $numberoflocations=keys( %cities );
@@ -519,9 +477,7 @@ sub dumpKML{
         my %heightOfCity=();
         my %cityPct=();
 
-        if ($debug) {
-                print "- Calculating Ingress Bars \n";
-        }
+        print "- Calculating Bars \n" if $debug;
 
         for my $eventsfromlocation (keys %cities) {
                 $eventcount = $eventcount+$cities{$eventsfromlocation};
@@ -672,14 +628,25 @@ sub dumpKML{
 
         <Style id=\"transGreenPoly\">
                 <LineStyle>
-                        <color>88009900</color>
+                        <color>7f00ff00</color>
                         <width>1.0</width>
                 </LineStyle>
                 <PolyStyle>
                         <!-- <color>66009900</color> This is a little light-->
-                        <color>88009900</color>
+                        <color>7f00ff00</color>
                 </PolyStyle>
         </Style>
+
+	<Style id=\"transRedPoly\">
+                <LineStyle>
+                        <color>7f0000ff</color>
+                        <width>1.0</width>
+                </LineStyle>
+                <PolyStyle>
+                        <color>7f0000ff</color>
+                </PolyStyle>
+        </Style>
+
 
         <Style id=\"transBluePoly\">
                 <LineStyle>
@@ -703,14 +670,17 @@ sub dumpKML{
                         print "B - Plotting $_ with hight of $heightOfCity{$_} \n";
                 }
 
-                my $style="transBluePoly";
-
-                if ( $_ =~ m/Unknown/ ) {
-                        if ($debug) {
-                                print "B - This is unknownVille - Using alt style\n";
-                        }
-                        $style="transGreenPoly";
-                }
+		my $style="transBluePoly"; # Default style
+                if ($config{'offset'} eq "left" ) {
+			$style="transBluePoly"
+		} elsif ($config{'offset'} eq "right") {
+			$style="transGreenPoly"
+		} else {
+			if ( $_ =~ m/Unknown/ ) {
+			        print "B - This is unknownVille - Using Green style\n" if $debug;
+			        $style="transGreenPoly";
+			}
+		}
 
                 my $heading=int( rand(300)) + 25;
                 my $shortpct = sprintf("%.3s", "$cityPct{$_}");
@@ -735,22 +705,41 @@ sub dumpKML{
                                 <altitudeMode>absolute</altitudeMode>
                                 <outerBoundaryIs>
                                         <LinearRing>
-                                        <coordinates>
-                                                " . ($cityLongitude{$_}-0.25) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) .
- "
-                                                " . ($cityLongitude{$_}+0.25) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) .
- "
-                                                " . ($cityLongitude{$_}+0.25) . "," . ($cityLatitude{$_}-0.25) . "," . ($heightOfCity{$_}) .
-"
-                                                " . ($cityLongitude{$_}-0.25) . "," . ($cityLatitude{$_}-0.25) . "," . ($heightOfCity{$_}) .
-"
-                                                " . ($cityLongitude{$_}-0.25) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) .
- "
+                                        <coordinates>";
+					
+					if ($config{'offset'} eq "left") {
+						print $KML_FILE "\n" .	 # 25 long shift left				
+                                                ($cityLongitude{$_}-0.50) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}) . "," . ($cityLatitude{$_}-0.25)  . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}-0.50) . "," . ($cityLatitude{$_}-0.25)  . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}-0.50) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" ;
+
+					} elsif ($config{'offset'} eq "right") { # 25 shift right
+						print $KML_FILE "\n" .					
+                                                ($cityLongitude{$_}) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}+0.50) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}+0.50) . "," . ($cityLatitude{$_}-0.25)  . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}) . "," . ($cityLatitude{$_}-0.25)  . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" ;
+					
+					} else {
+						print $KML_FILE "\n" .					
+                                                ($cityLongitude{$_}-0.25) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}+0.25) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}+0.25) . "," . ($cityLatitude{$_}-0.25)  . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}-0.25) . "," . ($cityLatitude{$_}-0.25)  . "," . ($heightOfCity{$_}) . "\n" .
+                                                ($cityLongitude{$_}-0.25) . "," . ($cityLatitude{$_}+0.175) . "," . ($heightOfCity{$_}) . "\n" ;
+					}
+
+
+					print $KML_FILE "
                                         </coordinates>
                                         </LinearRing>
                                 </outerBoundaryIs>
                         </Polygon>
                 </Placemark> \n";
+		
                 print $KML_FILE "
                 <Placemark>
                         <styleUrl>#citylabel</styleUrl> 
@@ -762,7 +751,7 @@ sub dumpKML{
                                 <coordinates>$cityLongitude{$_},$cityLatitude{$_}</coordinates>
                         </Point>
                         <description>$cities{$_} security events have been detected from $_</description>
-                </Placemark>\n";
+                </Placemark>\n" unless $config{'statsonly'};
         }
 
 	if ($verbose) {
@@ -989,14 +978,10 @@ sub processevent {
 		$dstlongitude,
 		my $dma_code,
 		my $area_code) = $gi->get_city_record($dst_addr)) {
-
-		if ($debug) {
-                	print "- DestIP $dst_addr location found in $dstcity, $dstcountry_name\n";
-               	}
+               	print "- DestIP $dst_addr location found in $dstcity, $dstcountry_name\n" if $debug;
+		
 	} else {
-        	if ($debug) {
-			print "- DestIP $dst_addr location unknown. Defaulting to $defaultlongitude, $defaultlatitude\n";
-                 }
+		print "- DestIP $dst_addr location unknown. Defaulting to $defaultlongitude, $defaultlatitude\n" if $debug;
                  $dstlongitude=$defaultlongitude;
                  $dstlatitude=$defaultlatitude;
 		 $dstcity="UnknownCity";
@@ -1028,9 +1013,16 @@ sub processevent {
 		$srccountry_name="UnknownCountry";
         }
 
-	if ($skipunknown) {
+	if ($config{'skipunknowncountry'}) {
 		if (("$srccountry_name" eq "UnknownCountry") and ("$dstcountry_name" eq "UnknownCountry")) {
-			print "- Skipping Event! -> Unknown location, no idea where to plot this RFC 1918?\n" if $verbose;
+			print "- Skipping Event! -> Unknown country, no idea where to plot this RFC 1918?\n" if $verbose;
+			return;
+		}
+	}
+	
+	if ($config{'skipunknowncity'}) {
+		unless ($srccity) {
+			print "Skipping this event, no source city\n" if $debug;
 			return;
 		}
 	}
@@ -1039,6 +1031,7 @@ sub processevent {
 	#if (( "$srccountry_name" eq "UnknownCountry" ) and ( "$dstcountry_name" ne "UnknownCountry")) {
 	#	print "Swapping direction for better plot of $shortmsg $srccountry_name -> $dstcountry_name\n";
 	#}
+	
        	push(@placemarks, ["$srclongitude",
                            "$srclatitude",
                            "$shortmsg - $srccity, $srccountry_name",
@@ -1072,8 +1065,6 @@ sub processevent {
 	#}
 	
 	
-	&updateCountries("$srccity","$srclongitude","$srclatitude");
-
         # Limit the number of placemarks we display to a number
         my $numofpoints = @placemarks;
         if ($numofpoints >= $config{'maxplacemarks'}+1) {
