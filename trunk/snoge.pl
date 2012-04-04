@@ -52,7 +52,7 @@ my $endtime=1586439068; 	# Looks like SnoGE will break in April 2020 :-P . This 
 my $starttime=0;
 no warnings 'once';	
 
-my (%config,$defaultlongitude,$defaultlatitude,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$parent,$configFile,$lastwindow,$debug,$offset);
+my (%config,$defaultlongitude,$defaultlatitude,$classfile,$verbose,$oneFile,$refresh,$pause,$dcurl,$parent,$configFile,$lastwindow,$debug,$offset,$style,$filename);
 my $lastupdatetime=0;
 my %empty=();
 
@@ -106,7 +106,7 @@ GetOptions (    'c|config=s' => \$configFile,
                 'o|onefile=s' => \$oneFile,
                 'p|parent|server=s' => \$parent,
                 's|skip-unknown-city' => \$config{'skipunknowncity'},
-                'w|write=s' => \$config{'kmlfile'},
+                'w|write=s' => \$filename,
                 'z|pause' => \$pause,
 		'v|verbose' => \$verbose,
 		'd|debug' => \$debug,
@@ -116,6 +116,7 @@ GetOptions (    'c|config=s' => \$configFile,
 		'm|datamode=s'     => \$config{'datamode'},
 		'i|inputmode=s'    => \$config{'inputmode'},
 		'offset=s'	=> \$offset,
+		'style=s'       => \$style,
                 );
 
 
@@ -149,9 +150,12 @@ close $config;
 
 $config{'onefile'} = $oneFile if ($oneFile);
 $config{'offset'} = $offset if $offset;
+$config{'style'} = $style if $style;
+$config{'kmlfile'} = $filename if $filename;
 
 if ($debug) {
 	print "CONFIG: Offset is 	    : $config{'offset'}\n";
+	print "CONFIG: Style is 	    : $config{'style'}\n";
 	print "CONFIG: Input mode is        : $config{'inputmode'}\n";
 	print "CONFIG: Data mode is         : $config{'datamode'}\n";
 	print "CONFIG: sid-msg file is      : $config{'sid-msg'}\n";
@@ -483,12 +487,13 @@ sub dumpKML{
                         print "B - Plotting $_ with hight of $heightOfCity{$_} \n";
                 }
 
+
 		my $style="transBluePoly"; # Default style
-                if ($config{'offset'} == 0 ) {
+                if ($config{'offset'} == 1 ) {
 			$style="transBluePoly"
-		} elsif ($config{'offset'} == 1 ) {
-			$style="transGreenPoly"
 		} elsif ($config{'offset'} == 2 ) {
+			$style="transGreenPoly"
+		} elsif ($config{'offset'} == 3 ) {
 			$style="transRedPoly"
 		} else {
 			# deep the default blue unless unknown
@@ -497,7 +502,7 @@ sub dumpKML{
 			        $style="transGreenPoly";
 			}
 		}
-
+	
                 my $heading=int( rand(300)) + 25;
                 my $shortpct = sprintf("%.3s", "$cityPct{$_}");
 
@@ -701,35 +706,23 @@ sub writekml{
 	# A bar should have $bar->{'name'}{'latitude'}|{'longitude'|}{'height'}|{'title'}|{'text'}|{'style'}
 	# A placemark should have $bar->{'name'}{'latitude'}|{'longitude'|}{'title'}|{'text'}
 	
-	
-	if ($debug) {
-		print "VERBOSE IN writekml\n";
-		for my $bar ( keys %$bars ){
-			print "GOT BAR $bar\n";
-			print "GOT BAR $bars->{$bar}{'title'}\n";
-			print "GOT BAR $bars->{$bar}{'text'}\n";
-                }
-        }
-	
-	
-	
 	####ÊSTART KML
 	open( my $KML_FILE,">",$config{'kmlfile'}) or die "Unable to create output file $config{'kmlfile'} . This is configured in $configFile to be $config{'kmlfile'}";
 	SNOGE::Common::dumpstyle($KML_FILE, \%config);
 
-	
-	
 	foreach my $bar ( keys %$bars) {
                 my $heading=int( rand(300)) + 25;
 		
                 if ($debug) {
-                        print "B - Plotting $bar with hight of $bars->{$bar}{height} \n";
+                        print "B - Plotting $bar with hight of $bars->{$bar}{height} longitude of $bars->{$bar}{'longitude'}\n";
                 }
-
-		my $style="onebar"; # Default style
-		if ($offset == 2 ) {
-			$style="twobar"
-		} elsif ($offset == 3 ) {
+	
+		my $style="onebar";
+		if ($offset == 0 ) {
+			$style="onebar"
+		} elsif ($offset == 1 ) {
+			$style="twobar";
+		} elsif ($offset == 2 ) {
 			$style="threebar";
 		}
 
