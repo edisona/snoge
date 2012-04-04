@@ -47,7 +47,7 @@ my $UF_Data = {};
 my $record = {};
 
 # ---------- Config file Defaults ----------
-my $snogeversion=1.8.1;
+my $snogeversion=2.0;
 my $endtime=1586439068; 	# Looks like SnoGE will break in April 2020 :-P . This is a dirty hack, but works for the time being.
 my $starttime=0;
 no warnings 'once';	
@@ -61,7 +61,7 @@ my %empty=();
 
 $config{'skipunknowncity'} = 0;
 $config{'skipunknownycountry'} = 0;
-
+$config{'quiet'} = 0;
 $config{'sid-msg'}="sid-msg.map";
 $config{'inputmode'}="csv";
 $config{'datamode'}="event";	#event or stats
@@ -116,6 +116,7 @@ GetOptions (    'c|config=s' => \$configFile,
 		'm|datamode=s'     => \$config{'datamode'},
 		'i|inputmode=s'    => \$config{'inputmode'},
 		'offset=s'	=> \$offset,
+		'q|quiet'	=> \$config{'quiet'},
                 );
 
 
@@ -152,6 +153,7 @@ $config{'offset'} = $offset if $offset;
 
 if ($debug) {
 	print "CONFIG: Offset is 	    : $config{'offset'}\n";
+	print "CONFIG: Quiet		    : $config{'quiet'}\n";
 	print "CONFIG: Input mode is        : $config{'inputmode'}\n";
 	print "CONFIG: Data mode is         : $config{'datamode'}\n";
 	print "CONFIG: sid-msg file is      : $config{'sid-msg'}\n";
