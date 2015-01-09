@@ -1,4 +1,4 @@
-#!/usr/bin/perl -I ..
+#!/usr/bin/env perl -I ..
 
 
 # TODO 
@@ -1330,6 +1330,6 @@ if ("$config{'inputmode'}" eq "unified") {
 
 		}
 	}
-	writekml($config{'kmlfile'},$config{'offset'},$config{'offlen'},\%statscache,\%empty);
+	#writekml($config{'kmlfile'},$config{'offset'},$config{'offlen'},\%statscache,\%empty);
 	print "KML file $config{'kmlfile'} created.\n";
 }
